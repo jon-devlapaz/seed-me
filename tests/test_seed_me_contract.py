@@ -149,24 +149,11 @@ class TestGrillMeWithJevContract(unittest.TestCase):
 class TestThroughlineSkillOrder(unittest.TestCase):
     def test_readme_throughline_order(self):
         readme = (ROOT / "README.md").read_text()
-        mermaid = re.search(r"```mermaid\n(.*?)```", readme, re.DOTALL)
-        self.assertIsNotNone(mermaid)
-        diagram = mermaid.group(1)
-        edges = (
-            'intent["intent / idea"] --> seed_me["seed-me"]',
-            'seed_me -->|settled seed contract| scout["skill-scout"]',
-            'scout -->|qualified skill / none| implementation["ai-native-sdlc"]',
-        )
-        positions = []
-        for edge in edges:
-            at = diagram.find(edge)
-            self.assertGreaterEqual(at, 0, edge)
-            positions.append(at)
-        self.assertEqual(positions, sorted(positions))
-        self.assertLess(positions[0], positions[1])
-        self.assertLess(positions[1], positions[2])
-        self.assertNotIn("grill-me-with-jev", diagram)
-        self.assertNotRegex(diagram, r"seed_me\s*-->(?:\|[^|]*\|)?\s*implementation\[")
+        self.assertIn("tink skill add jon-devlapaz/seed-me", readme)
+        self.assertNotIn("tink-skills", readme)
+        self.assertNotIn("skill-scout", readme)
+        self.assertNotIn("skill-gate", readme)
+        self.assertNotIn("ai-native-sdlc", readme)
         self.assertNotIn("grill-me", readme)
 
     def test_grill_me_with_jev_is_removed(self):
@@ -179,7 +166,10 @@ class TestThroughlineSkillOrder(unittest.TestCase):
 
     def test_readme_question_example_matches_the_skill_format(self):
         readme = (ROOT / "README.md").read_text()
-        self.assertIn("Question 1 of 3 ready (2 waiting on earlier answers)", readme)
+        skill = (SKILL_DIR / "SKILL.md").read_text()
+        start = skill.index("```text\n")
+        example = skill[start:skill.index("\n```", start) + 4]
+        self.assertIn(example, readme)
         self.assertNotRegex(readme, r"Q\d+ — ")
 
     def test_origin_instruction_names_the_simulated_authority(self):
