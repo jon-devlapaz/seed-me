@@ -3,4 +3,4 @@ version = 2
 [[skills]]
 name = "seed-me"
 source = "skills/seed-me"
-sha256 = "10bd84ed6fc824a3374b70cca2624d62039448d892f6a98eb1bac88ac6788c15"
+sha256 = "fc1cb86a1fa6ba213fd2f98e1c6ea716ed707741c75ffa79fb52fb85ef0e3e7e"
