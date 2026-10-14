@@ -3,7 +3,7 @@ name: seed-me
 description: Interview the user into a confirmed seed contract before anything is built. Use when they ask for seed-me, or want a plan, decision, or loose idea pressure-tested ("seed this", "grill me", "find the holes"). Reviews, summaries, and no-interview requests keep their own format.
 license: MIT
 metadata:
-  version: "2.3.0"
+  version: "2.4.0"
 ---
 
 # Seed Me
@@ -233,12 +233,12 @@ authorize product edits. The host runs the commands and owns the viewer process.
    that stated reason is refused.
 3. Each turn, read the current state and publish the next state:
    ```sh
-   python3 "<skill>/scripts/session.py" read "<session>"
+   python3 "<skill>/scripts/session.py" read "<session>" --editable > "<session>/update.json"
    python3 "<skill>/scripts/session.py" publish "<session>" "<session>/update.json"
    ```
-   Build `update.json` using the publication payload in ledger reference §1 on Full,
-   or the compact publication instructions in the lean procedure.
-   Supply the observed publication version and an actual change reason. `assumed` is an
+   `read --editable` writes the observed `expected_version` and a `state` without the
+   helper-owned fields. Edit `state` as ledger reference §1 (Full) or the lean procedure describes,
+   add an actual change `reason`, then publish. Never copy fields from a plain `read` into `state`. `assumed` is an
    optional list of `{"text", "why"}` entries (see Step 2); omit it when empty. The
    helper validates, retains history, saves the view, and uses atomic rename; never hand-edit
    `ledger.json` or the served HTML. On a stale version, reread and reconcile;

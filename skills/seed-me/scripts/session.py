@@ -109,6 +109,13 @@ def validate_rationale(node):
             "invalid rationale: feasibility (what the current architecture allows) and/or intent (the user's outcome or threat model), non-blank")
 
 
+def editable_payload(directory):
+    """One read, as a publication starts: the version it was read at and the state without helper-owned fields.
+    The caller edits `state`, adds `reason`, and publishes it. Reads only."""
+    ledger = load(directory)
+    return {"expected_version": ledger["version"], "state": editable(ledger)}
+
+
 def editable(ledger):
     state = {key: deepcopy(ledger[key]) for key in STATE_FIELDS}
     state["assumed"] = deepcopy(ledger.get("assumed", []))
@@ -135,7 +142,9 @@ def validate(state):
     require(isinstance(state["nodes"], list), "nodes must be a list")
     nodes = {}
     for node in state["nodes"]:
-        require(isinstance(node, dict) and not set(node) - NODE_FIELDS, "invalid node fields")
+        require(isinstance(node, dict), "invalid node fields")
+        extra = sorted(set(node) - NODE_FIELDS)
+        require(not extra, "invalid node fields: %s (helper-owned or unknown; start from `read --editable`)" % ", ".join(extra))
         require(text(node.get("id")), "node requires an id")
         require(node["id"] not in nodes, "duplicate node id")
         nodes[node["id"]] = node
@@ -742,7 +751,10 @@ def main():
     init = commands.add_parser("init")
     init.add_argument("--root", type=Path)
     init.add_argument("--operator", choices=OPERATORS, default="human")
-    commands.add_parser("read").add_argument("session", type=Path)
+    read = commands.add_parser("read")
+    read.add_argument("session", type=Path)
+    read.add_argument("--editable", action="store_true",
+                      help="print {expected_version, state} ready to edit and publish, without helper-owned fields")
     update = commands.add_parser("publish")
     update.add_argument("session", type=Path)
     update.add_argument("input", type=Path)
@@ -762,7 +774,7 @@ def main():
         if args.command == "init":
             result = {"session": str(create(args.root, args.operator))}
         elif args.command == "read":
-            result = load(args.session)
+            result = editable_payload(args.session) if args.editable else load(args.session)
         elif args.command == "end":
             result = end(args.session, args.status, args.reason, args.no_viewer)
         elif args.command == "status":
