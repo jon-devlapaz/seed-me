@@ -30,7 +30,7 @@ Against my suggestion: <the strongest case for the other option>.
    Checked: <what I verified>. Inference: <what I conclude from it, still uncertain>.
    Assumptions: <what I assumed, not confirmed>. Not checked: <what I did not verify>.
    I would change my suggestion if: <what would change my mind>. Proposed number: <any figure I invented for you to change, or "none">.
-Ledger: <the viewer URL on either path, or its saved HTML snapshot if the server cannot run>
+Ledger: <the viewer URL on either path, or its saved HTML snapshot when no viewer runs>
 ```
 
 Full contract: [`skills/seed-me/SKILL.md`](skills/seed-me/SKILL.md)
