@@ -86,9 +86,9 @@ not an artificial prerequisite.
 ### Publication payload
 
 Write a proposed update to `<session>/update.json`, then invoke `publish` as in
-SKILL.md. Start from a fresh `read`: retain only `status`, `draft`, `goal`, `origin`,
-`current_question`, and `nodes` under `state`. Strip `history` and `revision` from
-each node. The helper owns all other stored fields. The first publication follows goal
+SKILL.md. Start from `read "<session>" --editable`, which gives the observed `expected_version`
+and a `state` without the helper-owned fields; edit `state` and add a `reason`. The helper owns
+all other stored fields. The first publication follows goal
 confirmation (SKILL.md Session lifecycle step 1) and carries the draft with the confirmed origin.
 This is a **synthetic example**, including its user confirmation and inspected
 fixture: do not treat these strings as real authority or workspace evidence.

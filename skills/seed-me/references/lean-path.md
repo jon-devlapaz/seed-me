@@ -56,10 +56,9 @@ ledger, preserve the edit and ask about the conflict in chat; do not silently tr
 accepted answer. Keep proposals as proposals, not settled nodes. Assumptions belong in `assumed`.
 Do not add prerequisites just to make the graph appear: independent concerns use `[]`.
 
-For each publication, read the latest ledger and write `<session>/update.json` with
-`expected_version` from that read, an actual `reason`, and `state` containing only `status`,
-`draft`, `goal`, `origin`, `current_question`, `nodes`, and optional `assumed`/`operator`.
-Strip helper-owned node `history` and `revision`. For the first publication, set `goal` to the
+For each publication, write `<session>/update.json` with `session.py read "<session>" --editable`
+(SKILL.md **Session lifecycle** step 3): it holds the observed `expected_version` and a `state` with
+no helper-owned fields. Edit `state` and add an actual `reason`. For the first publication, set `goal` to the
 confirmed text and `origin` to the goal item's id; include a settled `decision` node with that
 same answer, `prerequisites: []`, `evidence: []`, `owner`, `gate`, `authority: user`, and the
 actual confirmation turn as `authority_source`. Simulation uses `simulated`, never `user`.
