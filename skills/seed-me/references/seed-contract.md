@@ -55,8 +55,10 @@ Read this before drafting the seed (SKILL.md Step 5.1). The displayed and saved 
   Map each to ledger status: known → settled (evidence), needs a decision →
   unresolved (blocker), watch → parked or risk, repeat surprise → risk with guardrail.
 - Downstream handoff: the session folder is the handoff: `<session>/seed-contract.md` together with
-  `ledger.json`, which a consumer needs to see that the session completed with a human. The viewer
-  page is not required. This artifact
+  `ledger.json`, which a consumer needs to see that the session completed with a human, and
+  `seed-confirmation.json`. A consumer checks `session.py status <session>`: `handoff.verified` is true
+  only while the seed and decisions are exactly what was confirmed. It proves content, not who
+  confirmed it. The viewer page is not required. This artifact
   is discovery input, not an implementation plan,
   approved specification, or review receipt. Preserve accepted constraints when
   deriving downstream plans or specifications; follow the selected workflow's

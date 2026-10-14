@@ -14,7 +14,7 @@ tink skill add jon-devlapaz/seed-me
 
 - **Investigates facts first:** Checks repository code, configs, and schemas before asking you anything. If a fact is discoverable, it won't interrupt you for it.
 - **One decision at a time:** Paces questions one by one with a clear recommendation grounded in workspace evidence, keeping cognitive load low.
-- **Durable discovery artifact:** Once all blockers are resolved and confirmed, saves the accepted plan as `<session>/seed-contract.md`, beside the interview's `ledger.json`, as intake for downstream implementation. The folder is the handoff, and line 1 of the seed is `status: draft`, `status: confirmed for intake` or `status: simulated`.
+- **Durable discovery artifact:** Once all blockers are resolved and confirmed, saves the accepted plan as `<session>/seed-contract.md`, beside the interview's `ledger.json`, as intake for downstream implementation. The folder is the handoff, and line 1 of the seed is `status: draft`, `status: confirmed for intake` or `status: simulated`. A confirmed seed also has `seed-confirmation.json`, and `session.py status` reports whether the seed and decisions still match what was confirmed.
 
 ## Interview format
 

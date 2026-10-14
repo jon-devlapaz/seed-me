@@ -93,13 +93,16 @@ class SessionCase(unittest.TestCase):
     def snapshot(self, directory):
         """Bytes of the files a refused command must leave alone."""
         return {name: (directory / name).read_bytes() if (directory / name).exists() else None
-                for name in ("seed-contract.md", "ledger.json")}
+                for name in ("seed-contract.md", "ledger.json", "seed-confirmation.json")}
 
     def end(self, directory, status="completed"):
         return run("end", directory, "--status", status, "--reason", "Fixture ending", "--no-viewer", "not under test")
 
-    def confirm(self, directory, revision="r1", source=SOURCE):
-        return run("seed", "confirm", directory, "--revision", revision, "--source", source)
+    def confirm(self, directory, revision="r1", source=SOURCE, sha256=None):
+        if sha256 is None:
+            seed = json.loads(run("status", directory).stdout)["seed"]
+            sha256 = seed["sha256"] if seed else "none"
+        return run("seed", "confirm", directory, "--revision", revision, "--source", source, "--sha256", sha256)
 
 
 class ConfirmWritesTests(SessionCase):

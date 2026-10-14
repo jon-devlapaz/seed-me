@@ -43,7 +43,8 @@ any time. Switching to full continues the same session without discarding this f
 7. Right after the goal is confirmed, ask the open probes before showing any finding, and for any deletion ask the recoverability probe. Run three probes (a pre-mortem, a counter-example, an outside view), put at least one to the
    user, and fill the Knowledge map honestly; ask for a one-sentence teach-back.
 8. Accepting wording is not approval to implement. Confirm the displayed revision as SKILL.md Step 5.3
-   describes; only `seed confirm` writes the confirmed status line. Line 1 is exactly one of `status: draft`,
+   describes, passing the `sha256` that `status` reported for the revision you displayed; only `seed confirm`
+   writes the confirmed status line. Line 1 is exactly one of `status: draft`,
    `status: confirmed for intake` or `status: simulated`; nothing else goes on it.
 
 ## Keep the ledger and editable file in agreement
