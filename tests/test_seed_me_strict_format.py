@@ -87,8 +87,20 @@ class SessionCase(unittest.TestCase):
 
     def write_seed(self, directory, first_line=DRAFT, **kwargs):
         path = directory / "seed-contract.md"
-        path.write_bytes(seed_text(first_line, **kwargs).encode("utf-8"))
+        eol = kwargs.get("eol", "\n")
+        decisions = self.decisions(directory).replace("\n", eol)
+        if kwargs.get("last_eol", True):
+            text = seed_text(first_line, **kwargs) + eol + decisions
+        else:  # the decisions come last, so they carry the missing final line break
+            text = seed_text(first_line, **kwargs) + eol + eol + decisions[:-len(eol)]
+        path.write_bytes(text.encode("utf-8"))
         return path
+
+    def decisions(self, directory):
+        """The ledger's decisions block, as `seed decisions` prints it for pasting into the seed."""
+        result = run("seed", "decisions", directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
 
     def snapshot(self, directory):
         """Bytes of the files a refused command must leave alone."""
@@ -121,22 +133,24 @@ class ConfirmWritesTests(SessionCase):
     def test_confirmed_by_goes_directly_after_the_revision_line_wherever_it_is(self):
         directory = self.complete_human()
         path = directory / "seed-contract.md"
-        path.write_bytes(b"status: draft\nrevision: r7\n# Title\n## You are confirming\nBody line\n")
+        decisions = self.decisions(directory)
+        path.write_bytes(("status: draft\nrevision: r7\n# Title\n## You are confirming\nBody line\n" + decisions).encode())
         self.assertEqual(self.confirm(directory, "r7").returncode, 0)
         lines = path.read_bytes().decode("utf-8").split("\n")
         self.assertEqual([lines[0], lines[1]], [CONFIRMED, "revision: r7"])
         self.assertTrue(lines[2].startswith("Confirmed by:"))
-        self.assertEqual(lines[3:], ["# Title", "## You are confirming", "Body line", ""])
+        self.assertEqual(lines[3:], ["# Title", "## You are confirming", "Body line"] + decisions.split("\n"))
 
     def test_a_last_line_without_a_line_break_is_left_that_way(self):
         directory = self.complete_human()
         path = directory / "seed-contract.md"
-        path.write_bytes(b"status: draft\n# Title\nrevision: r1\n## You are confirming\n- Goal: x")
+        decisions = self.decisions(directory)
+        path.write_bytes(("status: draft\n# Title\nrevision: r1\n" + decisions + "## You are confirming\n- Goal: x").encode())
         self.assertEqual(self.confirm(directory).returncode, 0)
         lines = path.read_bytes().decode("utf-8").split("\n")
         self.assertEqual([lines[0], lines[1], lines[2]], [CONFIRMED, "# Title", "revision: r1"])
         self.assertTrue(lines[3].startswith("Confirmed by:"))
-        self.assertEqual(lines[4:], ["## You are confirming", "- Goal: x"])
+        self.assertEqual(lines[4:], decisions.split("\n")[:-1] + ["## You are confirming", "- Goal: x"])
 
     def test_confirm_refuses_a_draft_that_is_not_a_seed_contract(self):
         for body in ("revision: r1\n", "revision: r1\n**You are confirming**\n- Goal: x\n",
@@ -408,7 +422,7 @@ class SimulatedTests(SessionCase):
 
     def test_end_completed_accepts_content_after_a_blank_line_in_the_confirming_section(self):
         directory = self.complete_simulated()
-        body = "revision: r1\n## You are confirming\n\n- Goal: x\n\n## Now\n"
+        body = "revision: r1\n## You are confirming\n\n- Goal: x\n\n## Now\n" + self.decisions(directory)
         (directory / "seed-contract.md").write_bytes((SIMULATED + "\n" + body).encode())
         result = self.end(directory)
         self.assertEqual(result.returncode, 0, result.stderr)

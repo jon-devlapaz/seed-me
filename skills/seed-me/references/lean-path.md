@@ -71,6 +71,11 @@ A non-blocking deferral needs `defer_reason` and `revisit_condition`; an unresol
 still prevents completion. Reopening clears answer/authority/source and adds `reopen_reason`.
 The helper validates the state and retains history; report rejected or stale publications.
 
+The ledger owns the decisions and assumptions. Fill the file's Decisions and Assumed sections by
+pasting `session.py seed decisions "<session>"` output unchanged, and paste it again after each
+publish; `seed confirm` refuses a file whose block is not current. Prose elsewhere in the file
+that restates a decision is still yours to keep in agreement.
+
 The Markdown contract revision and confirmation are separate from the ledger's helper-owned
 premise revision and publication version. Publishing or opening the viewer does not confirm
 the contract. Completion, the folder handoff, and stopping follow **Session lifecycle** in SKILL.md.
@@ -96,11 +101,8 @@ Session ledger: ledger.json
 ## Goal
 G [user] <one sentence>
 
-## Decisions
-D1 [user|delegated|evidence] <decision> — source: <the user's words, chat turn, or file:line>
-
-## Assumed (not confirmed by you)
-S1 [agent] <default> — why it is safe: ...
+<paste `session.py seed decisions "<session>"` output here: its "## Decisions (from the ledger)"
+and "## Assumed (not confirmed by you)" sections, unchanged>
 
 ## Constraints and exclusions
 C1 [user] ...
