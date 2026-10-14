@@ -670,8 +670,12 @@ def confirm_seed(directory, revision, source):
         require(not flagged, "nodes flagged for review remain: " + ", ".join(flagged))
         lines = seed_lines(directory)
         first = seed_line_one(lines)
-        require(first != STATUS_CONFIRMED, "the seed is already confirmed (line 1 is %r)" % first)
+        require(first != STATUS_CONFIRMED, "the seed is already confirmed (line 1 is %r); to confirm a change, save a new "
+                "revision with line 1 %r and no 'Confirmed by:' line, show it, and confirm that" % (first, STATUS_DRAFT))
         require(first == STATUS_DRAFT, "line 1 of %s must be exactly %r to confirm it, found %r" % (SEED_FILE, STATUS_DRAFT, first))
+        stale = [i + 1 for i, line in enumerate(lines) if i and line.startswith("Confirmed by:")]
+        require(not stale, "%s still has an earlier 'Confirmed by:' line (line %s); remove it from the new draft"
+                % (SEED_FILE, ", ".join(map(str, stale))))
         found = [(i, re.match(r"revision:[ \t]*(\S+)", line)) for i, line in enumerate(lines) if i > 0]
         found = [(i, m.group(1)) for i, m in found if m]
         require(found, "%s has no 'revision:' line, so the revision cannot be matched" % SEED_FILE)

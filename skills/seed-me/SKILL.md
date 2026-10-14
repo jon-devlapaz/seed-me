@@ -364,7 +364,8 @@ Once the local review and close checklist are resolved:
    review, the session is simulated or not active, or the seed is already confirmed. Never type
    the confirmed line by hand, and never run the helper before the user has affirmed that revision.
    If a decision or the seed changes after confirmation, save the new revision with line 1
-   `status: draft`, display it, and confirm it again; completion refuses the old confirmation.
+   `status: draft` and without the old `Confirmed by:` line, display it, and confirm it again;
+   completion refuses the old confirmation.
 4. End the session as `completed`, save its final viewer snapshot, and stop the
    viewer process using **Session lifecycle**. Report the session folder, which holds
    `seed-contract.md` and `ledger.json`, as discovery input for downstream planning or

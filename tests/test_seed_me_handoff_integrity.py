@@ -141,6 +141,25 @@ class StaleConfirmationTests(HandoffCase):
         self.assertEqual(self.status(directory)["handoff"]["reason"], "revision r2 as confirmed")
 
 
+class ReconfirmationTests(HandoffCase):
+    def test_confirming_again_names_the_next_step(self):
+        directory = self.confirmed()
+        result = self.confirm(directory)
+        self.assertEqual(result.returncode, 1)
+        self.assertRegex(result.stderr, r"already confirmed.*save a new revision")
+
+    def test_a_new_draft_that_keeps_the_old_confirmed_by_line_is_refused(self):
+        directory = self.confirmed()
+        path = directory / "seed-contract.md"
+        path.write_bytes(path.read_bytes().replace(b"status: confirmed for intake", DRAFT.encode(), 1)
+                         .replace(b"revision: r1", b"revision: r2", 1))
+        before = self.snapshot(directory)
+        result = self.confirm(directory, revision="r2")
+        self.assertEqual(result.returncode, 1)
+        self.assertRegex(result.stderr, r"earlier 'Confirmed by:' line \(line 4\)")
+        self.assertEqual(self.snapshot(directory), before)
+
+
 class ValidFlowControlsTests(HandoffCase):
     def test_an_exact_republish_and_a_repeated_end_keep_the_approval(self):
         directory = self.confirmed()
