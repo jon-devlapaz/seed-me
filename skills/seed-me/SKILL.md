@@ -3,7 +3,7 @@ name: seed-me
 description: Interview the user into a confirmed seed contract before anything is built. Use when they ask for seed-me, or want a plan, decision, or loose idea pressure-tested ("seed this", "grill me", "find the holes"). Reviews, summaries, and no-interview requests keep their own format.
 license: MIT
 metadata:
-  version: "2.4.0"
+  version: "2.4.1"
 ---
 
 # Seed Me
@@ -242,7 +242,10 @@ authorize product edits. The host runs the commands and owns the viewer process.
    optional list of `{"text", "why"}` entries (see Step 2); omit it when empty. The
    helper validates, retains history, saves the view, and uses atomic rename; never hand-edit
    `ledger.json` or the served HTML. On a stale version, reread and reconcile;
-   on any failure, keep the last valid state and report the blocker. After a publish,
+   on any failure, keep the last valid state and report the blocker. When `publish` or `end` cannot
+   finish, the last line on stderr is JSON whose `save_state` says what is durable: `saved` (exit 0;
+   the answer is recorded and only the view needs the `next_action` repair, so never ask the user
+   again), `not_saved` (nothing changed), or `unknown` (check `status` before repeating). After a publish,
    `python3 "<skill>/scripts/session.py" status "<session>"` is the cheap check: open and settled
    counts, the current question, whether the viewer is live and the saved view current, the saved
    seed's line 1, revision and `sha256`, and whether the handoff is verified. Use it

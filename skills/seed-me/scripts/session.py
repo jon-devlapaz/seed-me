@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import sys
 import tempfile
 import uuid
 from urllib.request import urlopen
@@ -533,6 +534,58 @@ def writer(directory):
             fcntl.flock(handle, fcntl.LOCK_UN)
 
 
+class SaveOutcome(OSError):
+    """A publish or end whose durable result must be reported, not inferred from the message.
+
+    `save_state` is `saved` (the ledger holds `result`; only the view failed), `not_saved` (the ledger is unchanged) or
+    `unknown` (the ledger could not be read back). Raised only after the writer's checks passed.
+    """
+
+    def __init__(self, message, save_state, directory, version, view_state, result=None):
+        super().__init__(message)
+        self.save_state, self.directory, self.version, self.view_state, self.result = (
+            save_state, Path(directory), version, view_state, result)
+
+    def diagnostic(self):
+        session, viewer = str(self.directory), str(Path(__file__).with_name("viewer.py"))
+        next_action = {
+            "saved": 'repair the view: python3 "%s" "%s" --snapshot (or repeat the same command)' % (viewer, session),
+            "not_saved": "nothing was saved; fix the cause and repeat the same command",
+            "unknown": 'check what was saved: python3 "%s" status "%s", then reconcile before repeating' % (__file__, session),
+        }[self.save_state]
+        return {"save_state": self.save_state, "session": session, "version": self.version,
+                "view_state": self.view_state, "next_action": next_action}
+
+
+def commit(directory, ledger, result, also=None):
+    """Save `result` over `ledger`, run `also`, then save the view; the caller holds the writer lock.
+
+    A failed ledger write is read back: unchanged is `not_saved`, `result` carries on, anything else is `unknown`.
+    Once the ledger is saved, a failure in `also` or the view never undoes it: it raises `saved` with the result.
+    """
+    if result is not ledger:
+        try:
+            atomic_write(directory / "ledger.json", result)
+        except OSError as error:
+            try:
+                current = load(directory)
+            except (OSError, ValueError):
+                current = None
+            if current != result:
+                state = "not_saved" if current == ledger else "unknown"
+                raise SaveOutcome("could not save the ledger: %s" % error, state, directory,
+                                  ledger["version"] if state == "not_saved" else None,
+                                  "unchanged" if state == "not_saved" else "unknown") from error
+    try:
+        if also is not None:
+            also()
+        write_snapshot(directory)
+    except (OSError, ValueError) as error:
+        raise SaveOutcome("saved version %d, but the view was not saved: %s" % (result["version"], error), "saved",
+                          directory, result["version"], "stale", result) from error
+    return result
+
+
 def publish(directory, state, expected_version, reason, revalidated=None):
     directory = Path(directory)
     with writer(directory):
@@ -540,10 +593,7 @@ def publish(directory, state, expected_version, reason, revalidated=None):
         result = transition(ledger, state, expected_version, reason, revalidated)
         require(result is ledger or result["status"] != "completed",
                 "publish cannot complete a session: use `end --status completed`, which checks the confirmed seed")
-        if result is not ledger:
-            atomic_write(directory / "ledger.json", result)
-        write_snapshot(directory)
-        return result
+        return commit(directory, ledger, result)
 
 
 def seed_lines(directory):
@@ -737,12 +787,11 @@ def end(directory, status, reason, no_viewer=None):
                 handoff = verify_handoff(directory, ledger)
                 require(handoff["verified"], "cannot complete: %s; save the current revision as a draft, show it, and "
                         "confirm it again with `seed confirm`" % handoff["reason"])
-        if result is not ledger:
-            atomic_write(directory / "ledger.json", result)
+        declined = None
         if needs_viewer and no_viewer is not None:
-            atomic_write_text(directory / "viewer.json", json.dumps({"declined": no_viewer.strip(), "at": now()}))
-        write_snapshot(directory)
-        return result
+            def declined():
+                atomic_write_text(directory / "viewer.json", json.dumps({"declined": no_viewer.strip(), "at": now()}))
+        return commit(directory, ledger, result, declined)
 
 
 def main():
@@ -785,7 +834,16 @@ def main():
             payload = json.loads(args.input.read_text())
             result = publish(args.session, **payload)
         print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+    except SaveOutcome as outcome:
+        report = str(outcome) + "\n" + json.dumps(outcome.diagnostic(), ensure_ascii=False) + "\n"
+        if outcome.save_state != "saved":
+            parser.exit(1, report)
+        print(json.dumps(outcome.result, ensure_ascii=False, allow_nan=False))
+        sys.stderr.write(report)
     except (ValueError, OSError, KeyError, TypeError) as error:
+        if args.command in ("publish", "end"):
+            refused = SaveOutcome(str(error), "not_saved", args.session, None, "unchanged")
+            parser.exit(1, str(error) + "\n" + json.dumps(refused.diagnostic(), ensure_ascii=False) + "\n")
         parser.exit(1, str(error) + "\n")
 
 
