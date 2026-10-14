@@ -22,9 +22,9 @@ any time. Switching to full continues the same session without discarding this f
 ## Rules
 
 0. When you create the file, print its absolute path as a `file://` link in the same message.
-   Start and link the viewer immediately after confirmed-goal publication, without a separate request.
-   End every question turn with `Ledger: <viewer URL>` (or the saved HTML snapshot link when
-   the server cannot run, with the actual reason). Follow **Session lifecycle** for startup, status,
+   Start and link the viewer immediately after confirmed-goal publication, without a separate request,
+   unless SKILL.md **Session lifecycle** step 2 says to skip it. End every question turn with
+   `Ledger: <viewer URL>` (or the saved HTML snapshot link when no viewer runs). Follow **Session lifecycle** for startup, status,
    snapshot, completion, and stopping only the owned viewer process.
 
 1. Every item has an id (`G`, `D1`, `C1`, `A1`, `Q1`, `E1`) and an author tag: `[user]`, `[agent]`,

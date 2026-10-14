@@ -3,7 +3,7 @@ name: seed-me
 description: Interview the user into a confirmed seed contract before anything is built. Use when they ask for seed-me, or want a plan, decision, or loose idea pressure-tested ("seed this", "grill me", "find the holes"). Reviews, summaries, and no-interview requests keep their own format.
 license: MIT
 metadata:
-  version: "2.4.1"
+  version: "2.4.2"
 ---
 
 # Seed Me
@@ -20,7 +20,7 @@ status messages, and the seed contract on both Lean and Full:
 - Use common words, short sentences, and active voice. Keep one main point per
   sentence. Name who acts and what they must do.
 - Put every label the person sees into words they already use. Offer the path as
-  "quick" or "thorough". On the first question turn after the viewer starts, say in one line what the `Ledger:`
+  "quick" or "thorough". On the first question turn, say in one line what the `Ledger:`
   link shows (every decision and whether it is settled). Call a `status: simulated` seed a
   "practice run that no person confirmed".
 - Use the same term for the same thing. Keep a necessary technical term and
@@ -149,7 +149,7 @@ Against my suggestion: <the strongest case for the other option>.
    Checked: <what I verified>. Inference: <what I conclude from it, still uncertain>.
    Assumptions: <what I assumed, not confirmed>. Not checked: <what I did not verify>.
    I would change my suggestion if: <what would change my mind>. Proposed number: <any figure I invented for you to change, or "none">.
-Ledger: <the viewer URL on either path, or its saved HTML snapshot if the server cannot run>
+Ledger: <the viewer URL on either path, or its saved HTML snapshot when no viewer runs>
 ```
 
 - `❓` marks an unresolved decision. `❔` optionally marks an unresolved decision
@@ -227,10 +227,13 @@ authorize product edits. The host runs the commands and owns the viewer process.
    no concerns are recorded yet. The page opens on the graph when there is something to draw; a Graph | Ledger toggle (keys `G` and `L`)
    switches to the full text view, and the selected concern carries across. Every `init`, `publish` and `end`
    also saves `<session>/ledger-view.html`, so a current view exists even where no server can
-   run. If the host cannot run a background process or loopback is blocked, say so in one
-   line, preserve the ledger, link the current saved HTML snapshot, and continue in chat; completing then needs
-   `end ... --no-viewer "<why it could not run>"`. Completion without a started viewer or
-   that stated reason is refused.
+   run. Skip starting the viewer, without asking again, when the user has said they do not want the
+   live view or the host is known to be unable to serve it (no background process, loopback blocked,
+   or a remote host whose localhost the user cannot open). Say so once in one line, link the saved
+   HTML snapshot, say whether the user can open that file from where they are, and continue in chat.
+   Completing then needs `end ... --no-viewer "<the true reason>"`, such as
+   `"User chose no live viewer"`; never describe a choice as a failure. Completion without a started viewer or that
+   stated reason is refused.
 3. Each turn, read the current state and publish the next state:
    ```sh
    python3 "<skill>/scripts/session.py" read "<session>" --editable > "<session>/update.json"
@@ -272,7 +275,7 @@ authorize product edits. The host runs the commands and owns the viewer process.
    `end` already saves the final state inside `<session>/ledger-view.html`; the snapshot
    command refreshes it atomically and prints its file URL. If saving fails, report it and retry; do not claim a
    saved final view or change the session back to active.
-6. Verify the live view shows the ended status, then stop only the recorded viewer
+6. If a viewer was started, verify the live view shows the ended status, then stop only the recorded viewer
    process with the host's process-control tool. If the live page is unavailable,
    verify and open the saved snapshot instead, then stop the owned process. Report
    shutdown failures; never kill an unrelated process or leave a server silently.
