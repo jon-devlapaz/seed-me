@@ -658,6 +658,46 @@ def decisions_digest(ledger):
     return sha256(json.dumps(covered, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8"))
 
 
+def one_line(value):
+    return " ".join(str(value).split())
+
+
+def decisions_lines(ledger):
+    """The seed's decisions and assumptions as (label, line) pairs, rendered from the ledger, which owns them.
+    Settled and deferred nodes are decisions; superseded nodes are history and unresolved ones block confirmation."""
+    rows = [("heading", "## Decisions (from the ledger)")]
+    for node in ledger["nodes"]:
+        after = " (after: %s)" % ", ".join(node["prerequisites"]) if node["prerequisites"] else ""
+        if node["status"] == "settled":
+            rows.append((node["id"], "- %s [%s] %s (source: %s)%s" % (
+                node["id"], node["authority"], one_line(node["answer"]), one_line(node["authority_source"]), after)))
+        elif node["status"] == "deferred":
+            rows.append((node["id"], "- %s deferred: %s (revisit if: %s)%s" % (
+                node["id"], one_line(node["defer_reason"]), one_line(node["revisit_condition"]), after)))
+    rows += [("heading", ""), ("heading", "## Assumed (not confirmed by you)")]
+    assumed = ledger.get("assumed", [])
+    rows += [("assumed %r" % one_line(a["text"])[:40], "- %s (why: %s)" % (one_line(a["text"]), one_line(a["why"])))
+             for a in assumed] or [("assumed", "- none")]
+    return rows
+
+
+def decisions_block(ledger):
+    """What `seed decisions` prints and the seed must carry verbatim. Read-only."""
+    return "".join(line + "\n" for _, line in decisions_lines(ledger))
+
+
+def require_seed_decisions(directory, ledger, refusal):
+    """The seed must carry the ledger's current decisions block, so the two files cannot disagree on what was decided."""
+    lines = [split_terminator(line)[0] for line in seed_lines(directory)]
+    if "\n" + decisions_block(ledger) in "".join("\n" + line for line in lines) + "\n":
+        return
+    present = set(lines)
+    stale = [label for label, line in decisions_lines(ledger) if label != "heading" and line not in present]
+    require(False, "%s: the seed's decisions do not match the ledger (%s); replace its Decisions and Assumed sections "
+            "with the output of `session.py seed decisions <session>`"
+            % (refusal, "not current: " + ", ".join(stale) if stale else "the block is incomplete or out of order"))
+
+
 def seed_summary(directory):
     """The saved seed's line 1, first revision label and sha256, or None when there is no seed. Read-only."""
     path = Path(directory) / SEED_FILE
@@ -741,6 +781,7 @@ def confirm_seed(directory, revision, source):
         index, label = found[0]
         require(label == revision.strip(), "revision %r does not match the file's revision line (%r)" % (revision.strip(), label))
         require_seed_body(directory, "cannot confirm")
+        require_seed_decisions(directory, ledger, "cannot confirm")
         first_end = split_terminator(lines[0])[1] or "\n"
         body, terminator = split_terminator(lines[index])
         note = 'Confirmed by: "%s" (revision %s, %s). Not approved for implementation.' % (
@@ -787,6 +828,7 @@ def end(directory, status, reason, no_viewer=None):
                 handoff = verify_handoff(directory, ledger)
                 require(handoff["verified"], "cannot complete: %s; save the current revision as a draft, show it, and "
                         "confirm it again with `seed confirm`" % handoff["reason"])
+            require_seed_decisions(directory, ledger, "cannot complete")
         declined = None
         if needs_viewer and no_viewer is not None:
             def declined():
@@ -818,6 +860,7 @@ def main():
     confirm.add_argument("session", type=Path)
     confirm.add_argument("--revision", required=True, help="the revision label the human confirmed, as in the seed's revision line")
     confirm.add_argument("--source", required=True, help="the human's words that confirmed it")
+    seed.add_parser("decisions", help="print the seed's Decisions and Assumed sections from the ledger").add_argument("session", type=Path)
     args = parser.parse_args()
     try:
         if args.command == "init":
@@ -828,6 +871,9 @@ def main():
             result = end(args.session, args.status, args.reason, args.no_viewer)
         elif args.command == "status":
             result = status(args.session)
+        elif args.command == "seed" and args.seed_command == "decisions":
+            sys.stdout.write(decisions_block(load(args.session)))
+            return
         elif args.command == "seed":
             result = confirm_seed(args.session, args.revision, args.source)
         else:

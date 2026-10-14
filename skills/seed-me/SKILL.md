@@ -3,7 +3,7 @@ name: seed-me
 description: Interview the user into a confirmed seed contract before anything is built. Use when they ask for seed-me, or want a plan, decision, or loose idea pressure-tested ("seed this", "grill me", "find the holes"). Reviews, summaries, and no-interview requests keep their own format.
 license: MIT
 metadata:
-  version: "2.4.2"
+  version: "2.5.0"
 ---
 
 # Seed Me
@@ -261,7 +261,7 @@ authorize product edits. The host runs the commands and owns the viewer process.
    Then put the probes to the user (**Look for what we don't know we don't know**) before any message shows a finding.
 5. On explicit stop, end as `stopped`. End as `completed` only after the seed is confirmed with
    `seed confirm` and saved as `<session>/seed-contract.md` in Step 5. `end --status completed`
-   refuses unless line 1 of that file is `status: confirmed for intake` (`status: simulated` in a simulated session) and the file has a `revision:` line and a non-empty `## You are confirming` section, so a status line alone never completes a session.
+   refuses unless line 1 of that file is `status: confirmed for intake` (`status: simulated` in a simulated session), the file has a `revision:` line and a non-empty `## You are confirming` section, and it carries the current `seed decisions` output, so a status line alone never completes a session.
    A human session also needs `seed confirm`'s record for this session to match the seed's bytes and the
    current decisions; any later edit to either needs a new draft revision and a new confirmation:
    ```sh
@@ -356,6 +356,9 @@ Once the local review and close checklist are resolved:
    and say how many decisions were accepted as suggested versus chosen by the user.
 3. Save every revision you display to `<session>/seed-contract.md`, beside `ledger.json`, with
    line 1 `status: draft`. The folder is the handoff: the seed and its ledger are saved together.
+   The ledger owns the decisions and assumptions, so never retype them: paste the output of
+   `python3 "<skill>/scripts/session.py" seed decisions "<session>"` into the seed unchanged, as
+   its Decisions and Assumed sections, and print it again after any publish.
    Do not save a seed at the repository or workspace root. Overwrite only this session's own
    file. When the user affirms the displayed revision label, run
    ```sh
@@ -366,7 +369,7 @@ Once the local review and close checklist are resolved:
    `<session>/seed-confirmation.json`, which ties the confirmation to this session, the seed's bytes
    and the decisions; never edit it. It refuses, and writes
    nothing, when the seed is missing, line 1 is not `status: draft`, the label does not match the
-   file's `revision:` line, the seed has no `## You are confirming` section with content after its `revision:` line, the source is empty, any ledger node is unresolved or flagged for
+   file's `revision:` line, the seed has no `## You are confirming` section with content after its `revision:` line, the seed does not carry the current `seed decisions` output, the source is empty, any ledger node is unresolved or flagged for
    review, the session is simulated or not active, or the seed is already confirmed. Never type
    the confirmed line by hand, and never run the helper before the user has affirmed that revision.
    If a decision or the seed changes after confirmation, save the new revision with line 1

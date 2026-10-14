@@ -16,7 +16,8 @@ def save_seed(session, directory, status_line=None):
     if status_line is None:
         status_line = session.STATUS_CONFIRMED if record else session.STATUS_SIMULATED
     path = directory / session.SEED_FILE
-    path.write_text(status_line + "\n# Seed contract: fixture\nrevision: r1        date: 2026-10-06\n\n## You are confirming\n- Goal: fixture\n", encoding="utf-8")
+    path.write_text(status_line + "\n# Seed contract: fixture\nrevision: r1        date: 2026-10-06\n\n## You are confirming\n- Goal: fixture\n\n"
+                    + session.decisions_block(ledger), encoding="utf-8")
     if record:
         digest = session.sha256(path.read_bytes())
         (directory / session.CONFIRMATION_FILE).write_text(json.dumps({

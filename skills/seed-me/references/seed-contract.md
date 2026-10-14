@@ -26,9 +26,10 @@ Read this before drafting the seed (SKILL.md Step 5.1). The displayed and saved 
   each one with the real command once it can run.
 - Affected users and systems: relevant repositories, modules, and execution paths.
 - Constraints and boundaries: non-negotiables, exclusions, and rejected alternatives.
-- Assumed defaults: every `assumed` entry, labelled as not confirmed by the user.
-- Accepted decisions: actual answers, authority, rationale, and dependencies;
-  distinguish user choices from evidence-derived facts and delegated choices.
+- Accepted decisions and assumed defaults: the output of `session.py seed decisions "<session>"`,
+  pasted unchanged. It lists each settled or deferred node with its authority, source and
+  dependencies, then every `assumed` entry labelled as not confirmed by the user. The ledger
+  owns this text; `seed confirm` refuses a seed whose copy is not current. Add rationale below it.
 - **Knowledge map**, in plain words, four parts:
   1. *What we know, with proof:* each item has its receipt and the date it was observed, and, for a fact that can
      change, a re-check trigger (`observed 2026-09-29; re-check if X changes or after N days`).
