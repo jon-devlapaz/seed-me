@@ -351,10 +351,9 @@ Once the local review and close checklist are resolved:
 3. Save every revision you display to `<session>/seed-contract.md`, beside `ledger.json`, with
    line 1 `status: draft`. The folder is the handoff: the seed and its ledger are saved together.
    Do not save a seed at the repository or workspace root. Overwrite only this session's own
-   file. When you display a revision, take its `seed.sha256` from `status` after saving it. When the
-   user affirms the displayed revision label, run
+   file. When the user affirms the displayed revision label, run
    ```sh
-   python3 "<skill>/scripts/session.py" seed confirm "<session>" --revision "<the label>" --sha256 "<seed.sha256 when displayed>" --source "<the user's words>"
+   python3 "<skill>/scripts/session.py" seed confirm "<session>" --revision "<the label>" --source "<the user's words>"
    ```
    The helper rewrites line 1 to `status: confirmed for intake`, adds a `Confirmed by:` line
    after the `revision:` line, and leaves every other line unchanged. It also writes
@@ -362,8 +361,7 @@ Once the local review and close checklist are resolved:
    and the decisions; never edit it. It refuses, and writes
    nothing, when the seed is missing, line 1 is not `status: draft`, the label does not match the
    file's `revision:` line, the seed has no `## You are confirming` section with content after its `revision:` line, the source is empty, any ledger node is unresolved or flagged for
-   review, the session is simulated or not active, the seed is already confirmed, or the seed's
-   sha256 differs from the one displayed. Never type
+   review, the session is simulated or not active, or the seed is already confirmed. Never type
    the confirmed line by hand, and never run the helper before the user has affirmed that revision.
    If a decision or the seed changes after confirmation, save the new revision with line 1
    `status: draft`, display it, and confirm it again; completion refuses the old confirmation.

@@ -22,4 +22,4 @@ def save_seed(session, directory, status_line=None):
         (directory / session.CONFIRMATION_FILE).write_text(json.dumps({
             "schema_version": 1, "session_id": ledger["session_id"], "operator": "human", "revision": "r1",
             "source": "TEST fixture confirmation", "confirmed_at": "2026-10-06T00:00:00+00:00",
-            "displayed_sha256": digest, "seed_sha256": digest, "decisions_sha256": session.decisions_digest(ledger)}))
+            "seed_sha256": digest, "decisions_sha256": session.decisions_digest(ledger)}))

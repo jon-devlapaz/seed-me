@@ -98,11 +98,8 @@ class SessionCase(unittest.TestCase):
     def end(self, directory, status="completed"):
         return run("end", directory, "--status", status, "--reason", "Fixture ending", "--no-viewer", "not under test")
 
-    def confirm(self, directory, revision="r1", source=SOURCE, sha256=None):
-        if sha256 is None:
-            seed = json.loads(run("status", directory).stdout)["seed"]
-            sha256 = seed["sha256"] if seed else "none"
-        return run("seed", "confirm", directory, "--revision", revision, "--source", source, "--sha256", sha256)
+    def confirm(self, directory, revision="r1", source=SOURCE):
+        return run("seed", "confirm", directory, "--revision", revision, "--source", source)
 
 
 class ConfirmWritesTests(SessionCase):

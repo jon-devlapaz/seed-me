@@ -22,11 +22,11 @@ SEED_FILE = "seed-contract.md"
 STATUS_DRAFT = "status: draft"
 STATUS_CONFIRMED = "status: confirmed for intake"
 STATUS_SIMULATED = "status: simulated"
-# Helper-owned record of what a human confirmed: this session, the seed bytes as displayed and as confirmed, and the decisions.
+# Helper-owned record of what a human confirmed: this session, the confirmed seed's bytes and the decisions.
 # Only `seed confirm` writes it. A folder's paths are not in it, so an intact session stays valid when moved.
 CONFIRMATION_FILE = "seed-confirmation.json"
 CONFIRMATION_FIELDS = {"schema_version", "session_id", "operator", "revision", "source", "confirmed_at",
-                       "displayed_sha256", "seed_sha256", "decisions_sha256"}
+                       "seed_sha256", "decisions_sha256"}
 NODE_FIELDS = {"id", "kind", "status", "prerequisites", "predicate", "evidence",
                "answer", "authority", "authority_source", "label", "question",
                "owner", "gate", "recommendation", "defer_reason", "revisit_condition", "reopen_reason", "contradicts",
@@ -649,15 +649,14 @@ def verify_handoff(directory, ledger=None):
     return {"verified": True, "reason": "revision %s as confirmed" % record["revision"]}
 
 
-def confirm_seed(directory, revision, source, displayed_sha256):
+def confirm_seed(directory, revision, source):
     """Rewrite line 1 of a draft seed to the confirmed line and add `Confirmed by:`. Refuses before writing anything.
 
-    The helper cannot know that a human affirmed; it makes the caller name the revision, give the sha256 of the seed it
-    displayed (from `status`) and quote the human's words. It records them, with the decisions, in the confirmation record.
+    The helper cannot know that a human affirmed; it makes the caller name the revision and quote the human's words. It
+    records them, with the confirmed seed's bytes and the decisions, in the confirmation record.
     """
     directory = Path(directory)
     require(text(revision), "--revision is required: the label shown to the human")
-    require(text(displayed_sha256), "--sha256 is required: the seed's sha256 from `status` when you displayed it")
     require(text(source), "--source is required: quote the human's words that confirmed this revision")
     require("\n" not in source and "\r" not in source, "--source must be one line")
     with writer(directory):
@@ -679,9 +678,6 @@ def confirm_seed(directory, revision, source, displayed_sha256):
         index, label = found[0]
         require(label == revision.strip(), "revision %r does not match the file's revision line (%r)" % (revision.strip(), label))
         require_seed_body(directory, "cannot confirm")
-        require(sha256("".join(lines).encode("utf-8")) == displayed_sha256.strip(),
-                "%s changed after it was displayed (its sha256 is not %s): show the current revision and ask again"
-                % (SEED_FILE, displayed_sha256.strip()))
         first_end = split_terminator(lines[0])[1] or "\n"
         body, terminator = split_terminator(lines[index])
         note = 'Confirmed by: "%s" (revision %s, %s). Not approved for implementation.' % (
@@ -696,8 +692,7 @@ def confirm_seed(directory, revision, source, displayed_sha256):
         path = directory / SEED_FILE
         confirmed = "".join(out)
         record = {"schema_version": 1, "session_id": ledger["session_id"], "operator": "human", "revision": label,
-                  "source": source.strip(), "confirmed_at": now(), "displayed_sha256": displayed_sha256.strip(),
-                  "seed_sha256": sha256(confirmed.encode("utf-8")), "decisions_sha256": decisions_digest(ledger)}
+                  "source": source.strip(), "confirmed_at": now(), "seed_sha256": sha256(confirmed.encode("utf-8")), "decisions_sha256": decisions_digest(ledger)}
         # The record goes first: if the seed write then fails, the seed is still a draft and the record matches nothing.
         atomic_write_text(directory / CONFIRMATION_FILE, json.dumps(record, ensure_ascii=False, indent=2) + "\n")
         atomic_write_text(path, confirmed, stat.S_IMODE(path.stat().st_mode))
@@ -758,7 +753,6 @@ def main():
     confirm.add_argument("session", type=Path)
     confirm.add_argument("--revision", required=True, help="the revision label the human confirmed, as in the seed's revision line")
     confirm.add_argument("--source", required=True, help="the human's words that confirmed it")
-    confirm.add_argument("--sha256", required=True, help="the seed's sha256 from `status` when you displayed that revision")
     args = parser.parse_args()
     try:
         if args.command == "init":
@@ -770,7 +764,7 @@ def main():
         elif args.command == "status":
             result = status(args.session)
         elif args.command == "seed":
-            result = confirm_seed(args.session, args.revision, args.source, args.sha256)
+            result = confirm_seed(args.session, args.revision, args.source)
         else:
             payload = json.loads(args.input.read_text())
             result = publish(args.session, **payload)

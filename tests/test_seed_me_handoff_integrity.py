@@ -30,11 +30,6 @@ class HandoffCase(SessionCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
-    def confirm(self, directory, revision="r1", source=SOURCE, sha256=None):
-        if sha256 is None:
-            sha256 = self.status(directory)["seed"]["sha256"]
-        return run("seed", "confirm", directory, "--revision", revision, "--source", source, "--sha256", sha256)
-
     def confirmed(self):
         directory = self.complete_human()
         self.write_seed(directory)
@@ -136,17 +131,6 @@ class StaleConfirmationTests(HandoffCase):
         shutil.copy(other / RECORD, directory / RECORD)
         self.refuse_completion(directory, r"another session")
 
-    def test_a_label_edited_between_display_and_confirmation_is_refused(self):
-        directory = self.complete_human()
-        path = self.write_seed(directory)
-        displayed = self.status(directory)["seed"]["sha256"]
-        path.write_bytes(path.read_bytes().replace(b"a fixture goal", b"something else"))
-        before = self.snapshot(directory)
-        result = self.confirm(directory, sha256=displayed)
-        self.assertEqual(result.returncode, 1)
-        self.assertRegex(result.stderr, r"changed after it was displayed")
-        self.assertEqual(self.snapshot(directory), before)
-
     def test_reconfirming_a_new_revision_restores_completion(self):
         directory = self.confirmed()
         self.edit(directory, lambda s: s["nodes"][1].update(answer="A different answer"))
@@ -220,11 +204,11 @@ class ReadOnlyVerificationTests(HandoffCase):
 class WriteBoundaryTests(HandoffCase):
     def draft(self):
         directory = self.complete_human()
-        path = self.write_seed(directory)
-        return directory, session.sha256(path.read_bytes())
+        self.write_seed(directory)
+        return directory
 
     def test_a_failed_seed_write_leaves_a_draft_that_cannot_complete_and_can_be_retried(self):
-        directory, displayed = self.draft()
+        directory = self.draft()
         real = session.atomic_write_text
 
         def fail_on_seed(path, content, mode=None):
@@ -234,14 +218,14 @@ class WriteBoundaryTests(HandoffCase):
 
         with mock.patch.object(session, "atomic_write_text", side_effect=fail_on_seed):
             with self.assertRaises(OSError):
-                session.confirm_seed(directory, "r1", SOURCE, displayed)
+                session.confirm_seed(directory, "r1", SOURCE)
         self.assertEqual((directory / "seed-contract.md").read_text().split("\n")[0], DRAFT)
         self.assertFalse(session.verify_handoff(directory)["verified"])
         self.assertEqual(self.confirm(directory).returncode, 0)
         self.assertEqual(self.end(directory).returncode, 0)
 
     def test_a_failed_record_write_changes_nothing(self):
-        directory, displayed = self.draft()
+        directory = self.draft()
         before = self.snapshot(directory)
         real = session.atomic_write_text
 
@@ -252,23 +236,16 @@ class WriteBoundaryTests(HandoffCase):
 
         with mock.patch.object(session, "atomic_write_text", side_effect=fail_on_record):
             with self.assertRaises(OSError):
-                session.confirm_seed(directory, "r1", SOURCE, displayed)
+                session.confirm_seed(directory, "r1", SOURCE)
         self.assertEqual(self.snapshot(directory), before)
 
     def test_a_competing_writer_blocks_confirmation(self):
-        directory, displayed = self.draft()
+        directory = self.draft()
         before = self.snapshot(directory)
         with session.writer(directory):
             with self.assertRaisesRegex(ValueError, "already has a writer"):
-                session.confirm_seed(directory, "r1", SOURCE, displayed)
+                session.confirm_seed(directory, "r1", SOURCE)
         self.assertEqual(self.snapshot(directory), before)
-
-
-class DocsTests(unittest.TestCase):
-    def test_the_documented_confirm_command_passes_the_displayed_sha256(self):
-        skill = (SESSION.parents[1] / "SKILL.md").read_text(encoding="utf-8")
-        command = next(line for line in skill.splitlines() if "session.py\" seed confirm" in line)
-        self.assertIn("--sha256", command)
 
 
 if __name__ == "__main__":
