@@ -142,7 +142,7 @@ class TestViewerEnforced(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         status = json.loads(out.stdout)
         self.assertEqual(set(status), {"status", "revision", "version", "open", "settled", "current_question",
-                                       "viewer", "snapshot", "snapshot_current"})
+                                       "viewer", "snapshot", "snapshot_current", "seed", "handoff"})
         self.assertEqual(status["viewer"], "not started")
         self.assertTrue(status["snapshot"].endswith("ledger-view.html"))
         self.assertLess(len(out.stdout), 600)

@@ -93,7 +93,7 @@ class SessionCase(unittest.TestCase):
     def snapshot(self, directory):
         """Bytes of the files a refused command must leave alone."""
         return {name: (directory / name).read_bytes() if (directory / name).exists() else None
-                for name in ("seed-contract.md", "ledger.json")}
+                for name in ("seed-contract.md", "ledger.json", "seed-confirmation.json")}
 
     def end(self, directory, status="completed"):
         return run("end", directory, "--status", status, "--reason", "Fixture ending", "--no-viewer", "not under test")
