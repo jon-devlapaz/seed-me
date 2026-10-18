@@ -759,10 +759,45 @@ def checks_digest(records):
     return sha256(json.dumps(records, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8"))
 
 
-def checks_block(records):
-    # JSON quoting prevents statements or commands from injecting Markdown headings or fences.
+def check_prose(value):
+    """Keep record text literal and on one Markdown line, without changing the records."""
+    value = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    value = re.sub(r"([\\`*_\[\]#~])", r"\\\1", value)
+    value = re.sub(r"^([+\-=])", r"\\\1", value)
+    value = re.sub(r"^(\d+)([.)])", r"\1\\\2", value)
+    leading = len(value) - len(value.lstrip(" "))
+    return "&#32;" * leading + "".join(
+        "&#%s;" % ord(char) if char.isspace() and char != " " else char
+        for char in value[leading:])
+
+
+def legacy_checks_block(records):
+    """The exact pre-plain-prose view, retained only to verify existing confirmations."""
     data = json.dumps(validate_checks(records), sort_keys=True, ensure_ascii=False, indent=2, allow_nan=False)
     return "## Acceptance criteria\n\n```json\n" + data + "\n```\n\n"
+
+
+def check_command(value):
+    # The section scanner treats HTML comments as opaque, even inside inline code.
+    if "<!--" in value or any(ord(char) < 32 or (char.isspace() and char != " ") for char in value):
+        return check_prose(value)
+    fence = "`" * (1 + max((len(run) for run in re.findall(r"`+", value)), default=0))
+    padding = " " if value.startswith(("`", " ")) or value.endswith(("`", " ")) else ""
+    return fence + padding + value + padding + fence
+
+
+def checks_block(records):
+    blocks = []
+    for record in validate_checks(records):
+        kind = record["kind"]
+        if kind == "cmd":
+            label, detail = "check", check_command(record["cmd"])
+        elif kind == "judge":
+            label, detail = "you judge", check_prose(record.get("how_to_judge", record["statement"]))
+        else:
+            label, detail = "not yet runnable", check_prose(record["missing"])
+        blocks.append(check_prose(record["statement"]) + "\n" + label + ": " + detail)
+    return "## Acceptance criteria\n\n" + "\n\n".join(blocks) + "\n\n"
 
 
 def set_checks(directory, records):
@@ -837,7 +872,7 @@ def document_headings(body):
     return headings
 
 
-def require_seed_checks(directory):
+def require_seed_checks(directory, allow_legacy=True):
     records = read_checks(directory)
     body = "".join(seed_lines(directory))
     require(not re.search(r"\r(?!\n)", body), "checks refuse lone CR: seed line endings must be LF or CRLF")
@@ -850,7 +885,9 @@ def require_seed_checks(directory):
     index = next(i for i, (_, line) in enumerate(headings) if line == "## Acceptance criteria")
     start = headings[index][0]
     end = headings[index + 1][0] if index + 1 < len(headings) else len(body)
-    require(body[start:end] == checks_block(records), "checks do not match the rendered Acceptance criteria section; use `seed checks render`")
+    section = body[start:end]
+    require(section == checks_block(records) or (allow_legacy and section == legacy_checks_block(records)),
+            "checks do not match the rendered Acceptance criteria section; use `seed checks render`")
     return records
 
 
@@ -944,7 +981,7 @@ def confirm_seed(directory, revision, source):
         require(label == revision.strip(), "revision %r does not match the file's revision line (%r)" % (revision.strip(), label))
         require_seed_body(directory, "cannot confirm")
         require_seed_decisions(directory, ledger, "cannot confirm")
-        records = require_seed_checks(directory)
+        records = require_seed_checks(directory, allow_legacy=False)
         first_end = split_terminator(lines[0])[1] or "\n"
         body, terminator = split_terminator(lines[index])
         note = 'Confirmed by: "%s" (revision %s, %s). Not approved for implementation.' % (
