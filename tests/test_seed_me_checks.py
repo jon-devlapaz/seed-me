@@ -7,8 +7,10 @@ Fixture copied unchanged from
 import hashlib
 import json
 from pathlib import Path
+from unittest.mock import patch
 
-from test_seed_me_strict_format import SessionCase, run
+from test_seed_me_session import session
+from test_seed_me_strict_format import SessionCase, SOURCE, run
 
 FIXTURE = Path(__file__).parent / "fixtures/stacker-r1-seed-contract.md"
 STACKER = [
@@ -85,7 +87,7 @@ class ChecksTests(SessionCase):
         expected = (
             "## Acceptance criteria\n\n"
             "Registered cabinets pass integration checks.\n"
-            "check: python3 -B scripts/check\\_arcade.py\n\n"
+            "check: `python3 -B scripts/check_arcade.py`\n\n"
             "Matches the tink-arcade style and theme.\n"
             "you judge: Inspect Stacker alongside existing cabinets; launch checks alone do not establish visual quality.\n\n"
             "Has working sounds.\n"
@@ -111,6 +113,68 @@ class ChecksTests(SessionCase):
         self.assertEqual(receipt["checks_sha256"], hashlib.sha256(canonical).hexdigest())
         self.assertEqual(self.end(directory).returncode, 0)
         self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
+
+    def test_legacy_confirmed_stacker_seed_still_verifies_without_rewriting(self):
+        records = [COMMAND, *STACKER]
+        for profile in ("lean", "full"):
+            with self.subTest(profile=profile):
+                directory = self.prepared(records)
+                path = self.write_seed(directory, profile=profile)
+                legacy = "## Acceptance criteria\n\n```json\n" + json.dumps(
+                    records, sort_keys=True, ensure_ascii=False, indent=2) + "\n```\n\n"
+                path.write_text(path.read_text().replace(self.render(directory), legacy))
+                # Simulate the old helper's confirmation, with a real v2 receipt and unchanged bytes.
+                with patch.object(session, "checks_block", return_value=legacy):
+                    session.confirm_seed(directory, "r1", SOURCE)
+                before = {p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}
+                result = run("status", directory)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(json.loads(result.stdout)["handoff"]["verified"], result.stdout)
+                self.assertEqual({p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}, before)
+                self.assertNotIn("```json", self.render(directory))
+                self.assertEqual(self.end(directory).returncode, 0)
+                self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
+
+    def test_new_confirmations_refuse_legacy_json_sections(self):
+        directory = self.prepared()
+        path = directory / "seed-contract.md"
+        legacy = "## Acceptance criteria\n\n```json\n" + json.dumps(
+            STACKER, sort_keys=True, ensure_ascii=False, indent=2) + "\n```\n\n"
+        path.write_text(path.read_text().replace(self.render(directory), legacy))
+        before = {p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}
+        result = self.confirm(directory)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("seed checks render", result.stderr)
+        self.assertEqual({p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}, before)
+
+    def test_single_line_commands_use_exact_code_spans_with_safe_fences_and_padding(self):
+        cases = [
+            (COMMAND["cmd"], "`" + COMMAND["cmd"] + "`"),
+            ("echo `hostname`", "`` echo `hostname` ``"),
+            ("echo ``two`` and `one`", "``` echo ``two`` and `one` ```"),
+            ("`command`", "`` `command` ``"),
+            (" echo spaced ", "`  echo spaced  `"),
+            (" echo leading", "`  echo leading `"),
+            ("echo trailing ", "` echo trailing  `"),
+            ("echo [literal] \\path & <tag>", "`echo [literal] \\path & <tag>`"),
+        ]
+        for command, span in cases:
+            with self.subTest(command=command):
+                directory = self.prepared([{**COMMAND, "cmd": command}])
+                self.assertIn("\ncheck: " + span + "\n", self.render(directory))
+                self.assertEqual(self.confirm(directory).returncode, 0)
+                self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
+
+    def test_unsafe_commands_use_escaped_prose_instead_of_code_spans(self):
+        for command in ("echo one\necho two", "echo one\recho two", "echo\tvalue", "echo <!-- hidden"):
+            with self.subTest(command=command):
+                directory = self.prepared([{**COMMAND, "cmd": command}])
+                rendered = self.render(directory)
+                self.assertNotIn("check: `", rendered)
+                self.assertNotIn("<!--", rendered)
+                self.assertNotIn("\r", rendered)
+                self.assertEqual(self.confirm(directory).returncode, 0)
+                self.assertEqual(json.loads(run("seed", "checks", "show", directory).stdout)[0]["cmd"], command)
 
     def test_judgment_without_instructions_still_names_what_to_judge(self):
         directory = self.prepared([{"statement": "Looks right.", "kind": "judge", "source": "TEST operator"}])

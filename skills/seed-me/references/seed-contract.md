@@ -136,9 +136,12 @@ python3 "<skill>/scripts/session.py" seed checks render "<session>"
 and leaves the seed untouched. Input and `show` output are a non-empty JSON array, in check order.
 `render` prints a deterministic, LF-terminated Acceptance criteria section with each statement followed
 by one line: `check:` with its command, `you judge:` with its judgment instructions (or the statement
-when no instructions were recorded), or `not yet runnable:` with what is missing. Record text is
-escaped as literal Markdown prose; it cannot inject headings, fences or HTML comments. The canonical
-records retain all fields for downstream intake; rendering does not edit them or the seed.
+when no instructions were recorded), or `not yet runnable:` with what is missing. Single-line commands
+use inline code spans that preserve the exact command, with a backtick fence longer than any run in
+the command and padding when needed. Commands containing control whitespace or HTML comment openers
+use escaped prose instead, as do multiline commands. Other record text is escaped as literal Markdown
+prose; it cannot inject headings, fences or HTML comments. The canonical records retain all fields
+for downstream intake; rendering does not edit them or the seed.
 All fields are non-empty strings (no NUL); no coercion.
 Unknown kinds and fields are refused. Exact schema (required fields unless marked optional):
 
@@ -156,6 +159,9 @@ The source names the actual decision or evidence, not invented command provenanc
 
 Both confirmation and handoff verification require exactly one real Acceptance criteria section,
 byte-identical to the render, within the complete canonical Full or Lean heading sequence.
+For existing confirmations, handoff verification also accepts the exact legacy sorted-key fenced-JSON
+render of the same records, without rewriting the seed or receipt. New confirmations require the
+current plain-language render; the CLI never emits the legacy view.
 Fenced code and HTML comments are non-content when locating sections; comment delimiters inside
 code fences or record strings are literal data. Any injected heading is refused regardless of its
 title, including emphasized, multiline Setext and nested headings, even when all stored hashes match.
