@@ -40,6 +40,7 @@ requiredness depends on kind and status, not every field is mandatory.
 | `answer` | string or null | Required, nonempty when settled: actual user choice, the recorded finding, or delegated choice. Otherwise omit or use `null`. |
 | `authority` | string or null | Required when settled: `evidence` for facts; `user` or `delegated` for decisions. Otherwise omit or use `null`. |
 | `authority_source` | string or null | Required, nonempty when settled: actual user-answer/delegation reference or inspected fact source. Otherwise omit or use `null`. |
+| `delegation` | object | Required only for a `delegated` goal origin; forbidden elsewhere. Exactly `agent`, `authorizing_operator`, `authorization_source`, `door`, and `blast_radius`, all nonblank strings. `door` must be `two-way` and `blast_radius` must be `small`. |
 | `contradicts` | string | Optional, facts only: the ID of a settled node that this fact's evidence contradicts (usually a decision, or an observation others rely on). The contradicted node is flagged for review (§7.3) until you revise it, reopen and re-settle it, revalidate it with a reason, or supersede the fact; completion is blocked meanwhile. |
 | `reopen_reason` | string | Nonempty whenever present; required when a settled node becomes unresolved. Retained in history on subsequent changes. |
 | `defer_reason` | string | Required, nonempty when deferred: why this non-blocking concern was postponed. |
@@ -71,7 +72,7 @@ Top-level fields:
 - `assumed`: optional list of `{text, why}` defaults the agent assumes unless the user
   objects. Never user answers; an objection turns an entry into a decision node.
 - `goal`, `origin`: initially `null`. Confirmation creates a settled decision
-  (`authority: user`; `simulated` in an agent-mode session) whose ID is `origin` and whose `answer` exactly equals `goal` (string equality).
+  (`authority: user`; `simulated` in an agent-mode session; explicitly authorized `delegated` as below) whose ID is `origin` and whose `answer` exactly equals `goal` (string equality).
   Both then remain fixed; record scope refinements in other nodes.
   A replacement goal starts a new session.
 - `current_question`: one ready decision ID, or `null`; always `null` after ending.
@@ -82,6 +83,45 @@ Top-level fields:
 
 Independent nodes may be unconnected; `origin` identifies the confirmed beginning,
 not an artificial prerequisite.
+
+### Explicitly authorized delegated goal origins
+
+In a human session, an agent may confirm a goal only with explicit operator
+permission for that goal and a two-way door with a small blast radius. Record
+`authority: delegated`, never `user`. Keep the agent's actual confirmation in
+`authority_source` and the exact operator authorization reference or words in
+`delegation.authorization_source`. Do not infer permission from classification.
+For example, synthetic TEST metadata (not real permission):
+
+```json
+{
+  "agent": "TEST agent Claude",
+  "authorizing_operator": "TEST operator",
+  "authorization_source": "TEST chat turn 7: confirm this TEST goal for me",
+  "door": "two-way",
+  "blast_radius": "small"
+}
+```
+
+This is caller-declared provenance, not authenticated identity or proof of consent.
+The host must check actual, goal-scoped authorization. The helper refuses missing,
+blank, extra or malformed fields and any class other than `two-way` + `small` on
+publication and readback. Existing evidence and settlement requirements still apply.
+Once published, delegated origin authority, confirmation source and delegation
+cannot be replaced or relabelled as the operator's; corrections start a new session.
+The structured data survives `read --editable`, stored ledger and snapshot output,
+and `seed decisions` carries it as JSON without losing the exact source string.
+It is included in the existing decisions digest.
+
+User-origin sessions keep `authority: user`, no `delegation` field, and their
+existing readback and decision text. Older helpers reject new delegated-origin
+sessions; consumers must adopt this contract before using them. No existing session
+is migrated. Ordinary delegated decisions keep their existing contract. Simulated
+sessions cannot use this delegation path.
+Neither user nor delegated goal confirmation permits implementation or seed
+confirmation. Seed revision confirmation and its helper-owned receipt are unchanged;
+this change does not add a delegated seed confirmer or inherit goal delegation
+as permission to run `seed confirm`.
 
 ### Publication payload
 

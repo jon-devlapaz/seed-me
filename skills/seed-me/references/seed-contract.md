@@ -29,7 +29,12 @@ Read this before drafting the seed (SKILL.md Step 5.1). The displayed and saved 
 - Accepted decisions and assumed defaults: the output of `session.py seed decisions "<session>"`,
   pasted unchanged. It lists each settled or deferred node with its authority, source and
   dependencies, then every `assumed` entry labelled as not confirmed by the user. The ledger
-  owns this text; `seed confirm` refuses a seed whose copy is not current. Add rationale below it.
+  owns this text; `seed confirm` refuses a seed whose copy is not current. A delegated
+  goal origin includes its caller-declared `delegation` JSON: confirming agent,
+  authorizing operator, exact authorization source, door and blast radius. Preserve
+  it unchanged; do not describe the agent's confirmation as the operator's.
+  Goal delegation does not authorize seed confirmation or implementation. User-origin
+  text and the seed-confirmation receipt contract are unchanged. Add rationale below it.
 - **Knowledge map**, in plain words, four parts:
   1. *What we know, with proof:* each item has its receipt and the date it was observed, and, for a fact that can
      change, a re-check trigger (`observed 2026-09-29; re-check if X changes or after N days`).

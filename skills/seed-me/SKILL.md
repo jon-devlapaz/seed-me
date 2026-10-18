@@ -253,7 +253,13 @@ authorize product edits. The host runs the commands and owns the viewer process.
    counts, the current question, whether the viewer is live and the saved view current, the saved
    seed's line 1, revision and `sha256`, and whether the handoff is verified. Use it
    instead of rereading the whole ledger. `publish` never completes a session; only `end` does.
-4. On goal confirmation, publish a settled decision as `origin`, with authority `user` (`simulated` in an agent-mode session). Keep the
+4. On goal confirmation, publish a settled decision as `origin`, with authority `user` (`simulated` in an agent-mode session).
+   An explicitly authorized agent confirmation in a human session uses `delegated`, never `user`,
+   with the structured `delegation` record in
+   [ledger-transitions.md](references/ledger-transitions.md#explicitly-authorized-delegated-goal-origins):
+   agent, authorizing operator, exact authorization source, `door: two-way` and `blast_radius: small`.
+   Missing fields or any other class are refused. Classification does not grant permission;
+   neither goal confirmation kind permits seed confirmation or implementation. Keep the
    confirmed goal prominent. Add edges only for actual prerequisites; independent
    concerns may remain unconnected. The goal is implicit: make `origin` a
    prerequisite only of a concern whose wording truly depends on it. Publish answers and reopened nodes before

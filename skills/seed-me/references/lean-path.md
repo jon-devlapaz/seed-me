@@ -61,7 +61,11 @@ For each publication, write `<session>/update.json` with `session.py read "<sess
 no helper-owned fields. Edit `state` and add an actual `reason`. For the first publication, set `goal` to the
 confirmed text and `origin` to the goal item's id; include a settled `decision` node with that
 same answer, `prerequisites: []`, `evidence: []`, `owner`, `gate`, `authority: user`, and the
-actual confirmation turn as `authority_source`. Simulation uses `simulated`, never `user`.
+actual confirmation turn as `authority_source`. An explicitly authorized agent goal confirmation
+instead uses `authority: delegated`, inspected evidence, and the complete `delegation` record
+from [ledger-transitions.md](ledger-transitions.md#explicitly-authorized-delegated-goal-origins)
+(two-way door, small blast radius only). Never label it `user`; it grants no seed or implementation
+permission. Simulation uses `simulated`, never `user` or `delegated`.
 Each later concern has stable `id`, `kind` (`decision` or `fact`), `status`, `prerequisites`,
 and `evidence`; decisions need `owner` and `gate`. Settled items also need `answer`,
 `authority` (`user`/`delegated` for decisions, `evidence` for facts), and `authority_source`;

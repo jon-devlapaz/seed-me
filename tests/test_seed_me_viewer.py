@@ -207,6 +207,23 @@ class TestViewerBrowser(ViewerFixture, unittest.TestCase):
         self.errors = []
         self.page.on("pageerror", lambda error: self.errors.append(str(error)))
 
+    def test_delegated_goal_displays_agent_not_operator_confirmation(self):
+        from test_seed_me_delegated_origin import TestDelegatedOrigin
+        fixture = TestDelegatedOrigin()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        self.directory = fixture.directory
+        fixture.publish()
+        self.page.goto((self.directory / "ledger-view.html").as_uri())
+        self.expect(self.page.locator("body")).to_contain_text("agent confirmed for operator")
+        self.expect(self.page.locator("body")).not_to_contain_text("you accepted the agent's suggestion")
+        self.expect(self.page.locator("body")).to_contain_text("TEST agent Claude")
+        self.expect(self.page.locator("body")).to_contain_text("TEST operator")
+        self.expect(self.page.locator("body")).to_contain_text("Exact second line.")
+        self.expect(self.page.locator("body")).to_contain_text("two-way")
+        self.expect(self.page.locator("body")).to_contain_text("small")
+        self.assertEqual(self.errors, [])
+
     def test_live_draft_decision_answer_and_reopening_with_safe_history(self):
         state = session.editable(session.load(self.directory))
         attack = '<img src=x onerror="window.injected=true">'

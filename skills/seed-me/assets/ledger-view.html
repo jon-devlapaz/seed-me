@@ -203,6 +203,7 @@
   <ul id="deferred-list" class="items"></ul>
 </section>
 <div id="connection" role="status" aria-live="polite">Waiting for session data.</div>
+<section id="goal-delegation" hidden><h2>Goal: agent confirmed for operator</h2><div id="goal-delegation-content"></div></section>
 <section id="draft" hidden><h2>Draft—not confirmed</h2><div id="draft-content"></div></section>
 <div id="cdn-banner" hidden></div>
 <section id="ledger-list" aria-label="Complete ledger text view"></section>
@@ -330,6 +331,12 @@ function stateFields(node, current) {
     ...(fact
       ? { Basis: node.authority && 'Evidence within the scope above. Nobody decided this, and accepting it would not make it true.', 'Source inspected': node.authority_source }
       : { 'Authorized by': node.authority, 'Authorization source': node.authority_source }),
+    ...(node.delegation ? {
+      'Confirming agent (caller-declared)': node.delegation.agent,
+      'Authorizing operator (caller-declared)': node.delegation.authorizing_operator,
+      'Exact delegation source': node.delegation.authorization_source,
+      Door: node.delegation.door, 'Blast radius': node.delegation.blast_radius
+    } : {}),
     'Needs review': flags.length ? flags.map(reviewText).join('\n') + '\nThe answer and authorization below are unchanged; nothing was reopened or replaced.' : null,
     'Waits for (workflow order)': node.prerequisites,
     'Relies on as evidence': (node.supported_by || []).map(nameOf),
@@ -406,6 +413,13 @@ function validate(data) {
     if (node.rationale !== undefined && (node.kind !== 'decision' || !node.rationale || !Object.keys(node.rationale).length ||
         !Object.entries(node.rationale).every(([k, v]) => ['feasibility', 'intent'].includes(k) && nonBlank(v)))) throw Error('Invalid rationale');
     if (node.kind === 'decision' && (!nonBlank(node.owner) || !nonBlank(node.gate))) throw Error('Invalid ledger node');
+    if (node.delegation !== undefined) {
+      const d = node.delegation;
+      const fields = ['agent', 'authorizing_operator', 'authorization_source', 'door', 'blast_radius'];
+      if (node.id !== data.origin || node.authority !== 'delegated' || node.status !== 'settled' || data.operator === 'simulated' ||
+          !d || typeof d !== 'object' || Object.keys(d).length !== fields.length || !fields.every(k => nonBlank(d[k])) ||
+          d.door !== 'two-way' || d.blast_radius !== 'small') throw Error('Invalid goal delegation');
+    }
     if (node.status === 'settled') {
       if (!nonBlank(node.answer) || !nonBlank(node.authority_source)) throw Error('Invalid ledger node');
       if (node.kind === 'fact' ? node.authority !== 'evidence' : (node.authority !== 'user' && node.authority !== 'delegated' && node.authority !== 'simulated')) throw Error('Invalid ledger node');
@@ -417,7 +431,8 @@ function validate(data) {
       data.frontier.some(id => !ids.has(id)) || (data.origin && !ids.has(data.origin))) throw Error('Invalid ledger reference');
   if (data.origin !== null && data.origin !== undefined) {
     const root = data.nodes.find(n => n.id === data.origin);
-    if (!nonBlank(data.goal) || !root || root.kind !== 'decision' || root.status !== 'settled' || (root.authority !== 'user' && root.authority !== 'simulated') || root.answer !== data.goal) throw Error('Invalid ledger origin');
+    if (!nonBlank(data.goal) || !root || root.kind !== 'decision' || root.status !== 'settled' || (root.authority !== 'user' && root.authority !== 'simulated' && root.authority !== 'delegated') || root.answer !== data.goal ||
+        (root.authority === 'delegated' && !root.delegation)) throw Error('Invalid ledger origin');
   }
   if (data.current_question && !data.nodes.some(n => n.id === data.current_question && n.kind === 'decision' && data.frontier.includes(n.id))) {
     throw Error('Invalid current question');
@@ -757,7 +772,7 @@ function who(node) {
     badge.title = CLAIM_MEANING[type];
     return badge;
   }
-  const label = { user: 'you decided', delegated: 'you accepted the agent\'s suggestion', evidence: 'fact checked', simulated: 'simulated answer (no human)' }[node.authority] || node.authority;
+  const label = node.delegation ? 'agent confirmed for operator' : { user: 'you decided', delegated: 'you accepted the agent\'s suggestion', evidence: 'fact checked', simulated: 'simulated answer (no human)' }[node.authority] || node.authority;
   const badge = element('span', label);
   badge.className = 'badge ' + node.authority;
   return badge;
@@ -932,6 +947,10 @@ function render() {
   el('accept-summary').textContent = LEDGER.operator === 'simulated'
     ? `Simulated answers: ${simulatedCount} · Human answers: 0`
     : `Accepted as suggested: ${accepted} · Chosen by you: ${chosen}`;
+  const goalOrigin = LEDGER.nodes.find(n => n.id === LEDGER.origin);
+  el('goal-delegation').hidden = !goalOrigin?.delegation;
+  el('goal-delegation-content').replaceChildren();
+  if (goalOrigin?.delegation) details(el('goal-delegation-content'), goalOrigin);
   const current = LEDGER.nodes.find(n => n.id === LEDGER.current_question);
   el('current').textContent = current ? `Current question: ${current.question || current.label || current.id}` : 'No question currently presented.';
   const pill = el('status-pill');
