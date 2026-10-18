@@ -87,7 +87,7 @@ class TestGrillMeWithJevContract(unittest.TestCase):
         lean = SKILL_DIR / "references" / "lean-path.md"
         self.assertTrue(lean.is_file())
         text = lean.read_text()
-        for required in ("You are confirming", "status: draft", "[evidence]", "cmd: `<exact command>`"):
+        for required in ("You are confirming", "status: draft", "[evidence]", 'seed checks render'):
             with self.subTest(lean=required):
                 self.assertIn(required, text)
 

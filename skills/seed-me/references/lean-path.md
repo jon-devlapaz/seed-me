@@ -107,11 +107,8 @@ and "## Assumed (not confirmed by you)" sections, unchanged>
 ## Constraints and exclusions
 C1 [user] ...
 
-## Acceptance checks
-A1 [user|agent] <plain-English line>
-   cmd: `<exact command>` | expect: <expected output> | cwd: <path>
-   (Not built yet? Write `provisional:` before `cmd:` and say what must exist for it to run. It records the intent,
-   does not block confirmation, and is never reported as verification.)
+<paste the entire `session.py seed checks render "<session>"` output here, including its
+"## Acceptance criteria" heading; first set records with `seed checks set` as specified in seed-contract.md>
 
 ## Open questions
 Q1 NEXT [agent] <title> — owner: <who decides> — why it matters: ...

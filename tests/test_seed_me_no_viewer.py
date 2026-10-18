@@ -41,6 +41,12 @@ class NoViewerTests(SessionCase):
         created = self.cli("init", "--root", self.root)
         self.assertEqual(created.returncode, 0, created.stderr)
         directory = Path(json.loads(created.stdout)["session"])
+        checks = self.payloads / "checks.json"
+        checks.write_text(json.dumps([{"statement": "Fixture goal is met", "kind": "judge", "source": "TEST operator"}]))
+        result = self.cli("seed", "checks", "set", directory, checks)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.cli("seed", "checks", "show", directory).returncode, 0)
+        self.assertEqual(self.cli("seed", "checks", "render", directory).returncode, 0)
         state = {"status": "active", "draft": {"goal": "Ship a fixture", "outcome": "A fixture outcome", "options": ["A: one"]},
                  "goal": "Ship a fixture", "origin": "goal", "current_question": None,
                  "nodes": [decision("goal", "user", answer="Ship a fixture"), decision("d1", "user", ["goal"])]}
