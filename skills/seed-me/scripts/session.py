@@ -759,10 +759,30 @@ def checks_digest(records):
     return sha256(json.dumps(records, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8"))
 
 
+def check_prose(value):
+    """Keep record text literal and on one Markdown line, without changing the records."""
+    value = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    value = re.sub(r"([\\`*_\[\]#~])", r"\\\1", value)
+    value = re.sub(r"^([+\-=])", r"\\\1", value)
+    value = re.sub(r"^(\d+)([.)])", r"\1\\\2", value)
+    leading = len(value) - len(value.lstrip(" "))
+    return "&#32;" * leading + "".join(
+        "&#%s;" % ord(char) if char.isspace() and char != " " else char
+        for char in value[leading:])
+
+
 def checks_block(records):
-    # JSON quoting prevents statements or commands from injecting Markdown headings or fences.
-    data = json.dumps(validate_checks(records), sort_keys=True, ensure_ascii=False, indent=2, allow_nan=False)
-    return "## Acceptance criteria\n\n```json\n" + data + "\n```\n\n"
+    blocks = []
+    for record in validate_checks(records):
+        kind = record["kind"]
+        if kind == "cmd":
+            label, detail = "check", record["cmd"]
+        elif kind == "judge":
+            label, detail = "you judge", record.get("how_to_judge", record["statement"])
+        else:
+            label, detail = "not yet runnable", record["missing"]
+        blocks.append(check_prose(record["statement"]) + "\n" + label + ": " + check_prose(detail))
+    return "## Acceptance criteria\n\n" + "\n\n".join(blocks) + "\n\n"
 
 
 def set_checks(directory, records):

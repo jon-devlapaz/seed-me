@@ -119,8 +119,8 @@ Lean, after the variable title:
 ```
 
 Paste the unchanged `seed decisions` and `seed checks render` blocks at their positions in the
-chosen sequence, without adding wrapper headings. Only the heading sequence and section admission
-have changed; the record schema, CLI, rendered blocks and confirmation v2 format are unchanged.
+chosen sequence, without adding wrapper headings. The record schema, CLI and confirmation v2
+format are unchanged.
 
 ## Check records
 
@@ -134,8 +134,12 @@ python3 "<skill>/scripts/session.py" seed checks render "<session>"
 
 `set` replaces all records atomically under the session writer lock; it requires an active session
 and leaves the seed untouched. Input and `show` output are a non-empty JSON array, in check order.
-`render` prints a deterministic, LF-terminated Acceptance criteria section containing indented JSON
-with sorted keys; it does not edit the seed. All fields are non-empty strings (no NUL); no coercion.
+`render` prints a deterministic, LF-terminated Acceptance criteria section with each statement followed
+by one line: `check:` with its command, `you judge:` with its judgment instructions (or the statement
+when no instructions were recorded), or `not yet runnable:` with what is missing. Record text is
+escaped as literal Markdown prose; it cannot inject headings, fences or HTML comments. The canonical
+records retain all fields for downstream intake; rendering does not edit them or the seed.
+All fields are non-empty strings (no NUL); no coercion.
 Unknown kinds and fields are refused. Exact schema (required fields unless marked optional):
 
 - Every record: `statement`, `kind`, `source`.

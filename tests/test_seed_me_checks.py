@@ -57,7 +57,9 @@ class ChecksTests(SessionCase):
         directory = self.prepared()
         rendered = self.render(directory)
         self.assertEqual(rendered, self.render(directory))
-        self.assertEqual(json.loads(rendered.split("```json\n", 1)[1].split("\n```", 1)[0]), STACKER)
+        self.assertNotIn("```", rendered)
+        for record in STACKER:
+            self.assertIn(record["statement"], rendered)
         self.assertEqual(json.loads(run("seed", "checks", "show", directory).stdout), STACKER)
         self.assertIn(rendered, (directory / "seed-contract.md").read_text())
         self.assertEqual(self.confirm(directory).returncode, 0)
@@ -69,8 +71,50 @@ class ChecksTests(SessionCase):
         directory = self.prepared(records)
         self.assertEqual(json.loads(run("seed", "checks", "show", directory).stdout), records)
         rendered = self.render(directory)
-        self.assertEqual(rendered, "## Acceptance criteria\n\n```json\n" + json.dumps(records, sort_keys=True, ensure_ascii=False, indent=2) + "\n```\n\n")
-        self.assertEqual(json.loads(rendered.split("```json\n", 1)[1].split("\n```", 1)[0]), records)
+        self.assertEqual(rendered.count("\ncheck: "), 1)
+        self.assertEqual(rendered.count("\nyou judge: "), 1)
+        self.assertEqual(rendered.count("\nnot yet runnable: "), 3)
+        self.assertNotIn("proposed_sound_check", rendered)
+        self.assertNotIn("```", rendered)
+        self.assertEqual(self.confirm(directory).returncode, 0)
+
+    def test_stacker_r1_four_records_are_plain_stable_and_intake_is_unchanged(self):
+        records = [COMMAND, *STACKER]
+        directory = self.prepared(records)
+        before = (directory / "seed-checks.json").read_bytes()
+        expected = (
+            "## Acceptance criteria\n\n"
+            "Registered cabinets pass integration checks.\n"
+            "check: python3 -B scripts/check\\_arcade.py\n\n"
+            "Matches the tink-arcade style and theme.\n"
+            "you judge: Inspect Stacker alongside existing cabinets; launch checks alone do not establish visual quality.\n\n"
+            "Has working sounds.\n"
+            "not yet runnable: Stacker-specific event-to-sound assertions and a repeat-playback invocation, followed by listening on the intended device.\n\n"
+            "Just works with the right mechanics as the game has.\n"
+            "not yet runnable: Read source rules, map settled choices, and add deterministic Stacker assertions including overlap width and zero-overlap loss.\n\n"
+        )
+        for _ in range(3):
+            self.assertEqual(self.render(directory).encode(), expected.encode())
+        # Key order is not part of the view or the canonical intake digest.
+        reordered = [dict(reversed(list(record.items()))) for record in records]
+        self.assertEqual(self.set_checks(directory, reordered).returncode, 0)
+        self.assertEqual(self.render(directory), expected)
+        self.assertEqual(self.confirm(directory).returncode, 0)
+        section = (directory / "seed-contract.md").read_text().split(expected)[1]
+        self.assertTrue(section.startswith("## Open questions\n"))
+        self.assertNotIn("```", expected)
+        self.assertNotIn('"kind":', expected)
+        self.assertEqual(json.loads(run("seed", "checks", "show", directory).stdout), json.loads(before))
+        canonical = json.dumps(records, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
+        receipt = json.loads((directory / "seed-confirmation.json").read_text())
+        self.assertEqual(receipt["schema_version"], 2)
+        self.assertEqual(receipt["checks_sha256"], hashlib.sha256(canonical).hexdigest())
+        self.assertEqual(self.end(directory).returncode, 0)
+        self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
+
+    def test_judgment_without_instructions_still_names_what_to_judge(self):
+        directory = self.prepared([{"statement": "Looks right.", "kind": "judge", "source": "TEST operator"}])
+        self.assertEqual(self.render(directory), "## Acceptance criteria\n\nLooks right.\nyou judge: Looks right.\n\n")
         self.assertEqual(self.confirm(directory).returncode, 0)
 
     def test_invalid_records_are_refused_without_writes(self):
@@ -146,6 +190,26 @@ class ChecksTests(SessionCase):
         self.assertEqual(self.confirm(directory).returncode, 0)
         self.assertFalse(marker.exists())
         self.assertEqual(json.loads(run("seed", "checks", "show", directory).stdout), [record])
+
+    def test_plain_record_text_cannot_inject_headings_fences_comments_or_links(self):
+        values = ["## Injected", "---", "===", "- ## Nested", "1. ## Nested",
+                  "    ## Indented", "> ## Quoted", "```\n## Fenced\n```",
+                  "<!-- hidden", "[hidden](https://example.test)", "Line\r\n## Next\tline",
+                  "Literal &lt;tag&gt; and \\ backslash"]
+        records = []
+        for value in values:
+            records.extend([{**COMMAND, "statement": value, "cmd": value},
+                            {**STACKER[0], "statement": value, "how_to_judge": value},
+                            {**STACKER[1], "statement": value, "missing": value}])
+        directory = self.prepared(records)
+        rendered = self.render(directory)
+        self.assertEqual(rendered.count("\n## "), 0)
+        self.assertNotIn("<!--", rendered)
+        self.assertNotIn("```", rendered)
+        self.assertNotIn("\r", rendered)
+        self.assertEqual(self.confirm(directory).returncode, 0)
+        self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
+        self.assertEqual(json.loads(run("seed", "checks", "show", directory).stdout), records)
 
     def refuse_admission(self, transform, profile="lean"):
         directory = self.prepared()
