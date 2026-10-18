@@ -193,6 +193,41 @@ class ChecksTests(SessionCase):
                 self.refuse_admission(transform)
                 self.refuse_admission(lambda body, section: transform(body, section) + "\n## Acceptance checks\ncmd: false\n")
 
+    def test_inline_markup_cannot_hide_extra_acceptance_headings(self):
+        for title in ("**Acceptance checks**", "_Acceptance criteria_", "`Acceptance checks`",
+                      "Accept**ance**  CHECKS", "<em>Acceptance</em>&nbsp;<code>checks</code>",
+                      "[Acceptance checks][checks-ref]", "~~Acceptance criteria~~"):
+            with self.subTest(title=title):
+                extra = "## " + title + "\nTEST unrecorded requirement\ncmd: false\n\n"
+                self.refuse_admission(lambda body, section: body.replace(section, section + extra, 1))
+
+    def test_a_canonical_section_only_inside_an_html_comment_is_refused(self):
+        for closing in ("-->\n\n", ""):
+            with self.subTest(closing=closing):
+                self.refuse_admission(lambda body, section: body.replace(
+                    section, "<!--\n" + section + "## End example\n" + closing, 1))
+
+    def test_nested_link_markup_cannot_hide_acceptance_titles(self):
+        for heading in (
+            '## [**aCcEpTaNcE** `checks`](https://example.test/a_(b) "link title")',
+            '## [Acceptance **checks**](<https://example.test/a_(b)> "title ) text")',
+            '**[Acceptance](https://example.test)** _criteria_\n-----------------',
+            '## Acceptance <!-- hidden note -->[checks](https://example.test)',
+        ):
+            with self.subTest(heading=heading):
+                extra = heading + "\nTEST unrecorded requirement\ncmd: false\n\n"
+                self.refuse_admission(lambda body, section: body.replace(section, section + extra, 1))
+
+    def test_commented_examples_and_comment_text_in_records_do_not_hide_real_checks(self):
+        directory = self.prepared([{**COMMAND, "statement": "Literal <!-- in a record is data"}])
+        path = directory / "seed-contract.md"
+        section = self.render(directory)
+        example = "<!--\n````markdown\n" + section + "## **Acceptance checks**\n````\n-->\n\n"
+        path.write_text(path.read_text().replace(section, example + section, 1))
+        result = self.confirm(directory)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
+
     def test_fenced_examples_do_not_hide_the_real_canonical_section(self):
         directory = self.prepared()
         path = directory / "seed-contract.md"

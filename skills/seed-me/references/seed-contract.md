@@ -17,7 +17,8 @@ Read this before drafting the seed (SKILL.md Step 5.1). The displayed and saved 
 - Acceptance criteria: generated only from the session's `seed-checks.json` records using
   `session.py seed checks render <session>`. Paste the entire output unchanged, including its
   `## Acceptance criteria` heading and final blank line. It must be the only acceptance section,
-  outside fenced examples; additional `Acceptance checks` or duplicate acceptance headings are refused.
+  outside fenced examples and HTML comments; additional `Acceptance checks` or duplicate acceptance
+  headings are refused even when their titles use inline formatting.
   Never hand-write or parse criteria Markdown. Downstream consumers read the records, not the rendered
   section. See **Check records** below.
 - Affected users and systems: relevant repositories, modules, and execution paths.
@@ -91,8 +92,12 @@ component, backslashes and drive-letter paths are refused. The helper never exec
 The source names the actual decision or evidence, not invented command provenance.
 
 Both confirmation and handoff verification require exactly one real Acceptance criteria section,
-byte-identical to the render. A matching occurrence only inside a fence does not count, and extra
-acceptance sections are refused even when all stored hashes match.
+byte-identical to the render. Fenced code and HTML comments are non-content when locating sections;
+comment delimiters inside code fences or record strings are literal data. Every ATX or Setext heading
+is compared by its plain text: inline emphasis, code spans, link labels/references and HTML tags/entities
+are flattened, then case and whitespace are normalized. An extra heading whose text is `Acceptance
+criteria` or `Acceptance checks` is refused even when all stored hashes match. A canonical occurrence
+only inside a comment or fence never counts. These admission checks do not change the rendered bytes.
 `seed confirm` stores canonical records' SHA-256 alongside
 seed-byte and decision hashes in `seed-confirmation.json` (schema version 2). Record changes,
 missing or invalid records, or any seed-byte change invalidate `handoff.verified`; a new displayed
