@@ -147,8 +147,10 @@ class ChecksTests(SessionCase):
         self.assertFalse(marker.exists())
         self.assertEqual(json.loads(run("seed", "checks", "show", directory).stdout), [record])
 
-    def refuse_admission(self, transform):
+    def refuse_admission(self, transform, profile="lean"):
         directory = self.prepared()
+        if profile != "lean":
+            self.write_seed(directory, profile=profile)
         path = directory / "seed-contract.md"
         section = self.render(directory)
         draft = path.read_text()
@@ -195,13 +197,32 @@ class ChecksTests(SessionCase):
 
     def test_full_and_lean_templates_keep_the_same_rendered_checks(self):
         for profile in ("full", "lean"):
-            with self.subTest(profile=profile):
-                directory = self.prepared()
-                path = self.write_seed(directory, profile=profile)
-                self.assertIn(self.render(directory).encode(), path.read_bytes())
-                result = self.confirm(directory)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
+            for eol, last_eol in (("\n", True), ("\r\n", True), ("\r\n", False)):
+                with self.subTest(profile=profile, eol=eol, last_eol=last_eol):
+                    directory = self.prepared()
+                    path = self.write_seed(directory, profile=profile, eol=eol, last_eol=last_eol)
+                    before = path.read_bytes()
+                    self.assertIn(self.render(directory).encode(), before)
+                    result = self.confirm(directory)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    after = path.read_bytes()
+                    note = next(line for line in after.splitlines(keepends=True) if line.startswith(b"Confirmed by:"))
+                    self.assertEqual(after.replace(note, b"", 1).replace(b"status: confirmed for intake", b"status: draft", 1), before)
+                    self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
+
+    def test_cr_separated_reviewer_headings_are_refused(self):
+        for profile in ("full", "lean"):
+            for extra in ("\nTEST prefix\r## Acceptance checks\rTEST unrecorded requirement\rcmd: false\r",
+                          "\nTEST prefix\r\r**Acceptance**\r_checks_\r----\rTEST unrecorded requirement\rcmd: false\r"):
+                with self.subTest(profile=profile, extra=extra):
+                    self.refuse_admission(lambda body, section: body + extra, profile=profile)
+
+    def test_lone_cr_is_refused_even_without_headings_or_inside_opaque_content(self):
+        for profile in ("full", "lean"):
+            for extra in ("\nTEST prose\rmore prose\n", "\n<!-- TEST comment\rhidden -->\n",
+                          "\n```text\nTEST code\rdata\n```\n"):
+                with self.subTest(profile=profile, extra=extra):
+                    self.refuse_admission(lambda body, section: body + extra, profile=profile)
 
     def test_template_headings_must_be_literal_complete_and_ordered(self):
         for changed in ("## **Goal**", "## goal", "Goal", "## Evidence", "  ## Goal", "Goal\n----"):

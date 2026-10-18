@@ -68,7 +68,9 @@ Read this before drafting the seed (SKILL.md Step 5.1). The displayed and saved 
 Choose Full or Lean. Outside fenced code and HTML comments, the document must have one leading
 variable `# <title>` line followed by exactly the chosen sequence below. Every heading line is
 literal, unindented and LF-terminated: no renaming, inline formatting, closing hashes, omissions,
-duplicates, extra headings or reordering. Metadata and prose retain their existing line endings.
+duplicates, extra headings or reordering. Metadata and prose retain their existing LF or CRLF line
+endings. A lone CR anywhere in the document, including fences or comments, is refused; the helper
+never normalizes the saved bytes.
 The host writes these headings; there is no new CLI or record field for the template choice.
 
 Body prose must not contain ATX or Setext heading syntax, at any nesting or indentation. Setext
