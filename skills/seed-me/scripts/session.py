@@ -23,11 +23,11 @@ SEED_FILE = "seed-contract.md"
 STATUS_DRAFT = "status: draft"
 STATUS_CONFIRMED = "status: confirmed for intake"
 STATUS_SIMULATED = "status: simulated"
-# Helper-owned record of what a human confirmed: this session, the confirmed seed's bytes and the decisions.
+# Helper-owned record of what a human confirmed: this session, seed bytes, decisions and check records.
 # Only `seed confirm` writes it. A folder's paths are not in it, so an intact session stays valid when moved.
 CONFIRMATION_FILE = "seed-confirmation.json"
 CONFIRMATION_FIELDS = {"schema_version", "session_id", "operator", "revision", "source", "confirmed_at",
-                       "seed_sha256", "decisions_sha256"}
+                       "seed_sha256", "decisions_sha256", "checks_sha256"}
 NODE_FIELDS = {"id", "kind", "status", "prerequisites", "predicate", "evidence",
                "answer", "authority", "authority_source", "label", "question",
                "owner", "gate", "recommendation", "defer_reason", "revisit_condition", "reopen_reason", "contradicts",
@@ -698,6 +698,139 @@ def require_seed_decisions(directory, ledger, refusal):
             % (refusal, "not current: " + ", ".join(stale) if stale else "the block is incomplete or out of order"))
 
 
+CHECKS_FILE = "seed-checks.json"
+CHECK_FIELDS = {
+    "cmd": ({"statement", "kind", "source", "cmd", "expect", "cwd"}, set()),
+    "provisional": ({"statement", "kind", "source", "expect", "cwd", "missing"}, {"cmd"}),
+    "judge": ({"statement", "kind", "source"}, {"how_to_judge"}),
+}
+
+
+def validate_checks(records):
+    require(isinstance(records, list) and records, "checks must be a non-empty JSON array")
+    for index, record in enumerate(records, 1):
+        prefix = "check %s" % index
+        require(isinstance(record, dict), prefix + " must be an object")
+        kind = record.get("kind")
+        require(isinstance(kind, str) and kind in CHECK_FIELDS, prefix + " has unknown kind")
+        required, optional = CHECK_FIELDS[kind]
+        require(required <= set(record), prefix + " missing fields: " + ", ".join(sorted(required - set(record))))
+        require(set(record) <= required | optional, prefix + " has unknown fields: " + ", ".join(sorted(set(record) - required - optional)))
+        for field, value in record.items():
+            require(text(value) and "\x00" not in value, prefix + "." + field + " must be a non-empty string without NUL")
+        if "cwd" in record:
+            cwd = record["cwd"]
+            require(not cwd.startswith("/") and ".." not in cwd.split("/") and "\\" not in cwd
+                    and not re.match(r"^[A-Za-z]:", cwd) and "\n" not in cwd and "\r" not in cwd,
+                    prefix + ".cwd must be repo-relative, without '..', absolute paths or backslashes")
+    return records
+
+
+def read_checks(directory):
+    path = Path(directory) / CHECKS_FILE
+    require(path.is_file(), "checks are missing: use `seed checks set <session> <input.json>`")
+    return validate_checks(json.loads(path.read_text(encoding="utf-8")))
+
+
+def checks_digest(records):
+    return sha256(json.dumps(records, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8"))
+
+
+def checks_block(records):
+    # JSON quoting prevents statements or commands from injecting Markdown headings or fences.
+    data = json.dumps(validate_checks(records), sort_keys=True, ensure_ascii=False, indent=2, allow_nan=False)
+    return "## Acceptance criteria\n\n```json\n" + data + "\n```\n\n"
+
+
+def set_checks(directory, records):
+    records = validate_checks(records)
+    directory = Path(directory)
+    with writer(directory):
+        require(load(directory)["status"] == "active", "ended session is read-only")
+        atomic_write_text(directory / CHECKS_FILE, json.dumps(records, ensure_ascii=False, indent=2) + "\n")
+    return {"checks": str(directory / CHECKS_FILE), "count": len(records), "sha256": checks_digest(records)}
+
+
+def without_comments(line, inside):
+    out, index = [], 0
+    while index < len(line):
+        if inside:
+            end = line.find("-->", index)
+            if end < 0:
+                return "".join(out), True
+            index, inside = end + 3, False
+        else:
+            start = line.find("<!--", index)
+            if start < 0:
+                out.append(line[index:])
+                break
+            out.append(line[index:start])
+            index, inside = start + 4, True
+    return "".join(out), inside
+
+
+SEED_HEADINGS = {
+    "full": (
+        "## You are confirming", "## Problem statement", "## Proposed outcome", "## Acceptance criteria",
+        "## Affected users and systems", "## Constraints and boundaries", "## Decisions (from the ledger)",
+        "## Assumed (not confirmed by you)", "## Knowledge map", "## Evidence and uncertainty",
+        "## Suggested first slice", "## Risks and verification", "## Open questions and deferrals",
+        "## Owners and next steps", "## Downstream handoff",
+    ),
+    "lean": (
+        "## You are confirming", "## Now  (the agent keeps these current)", "## Goal",
+        "## Decisions (from the ledger)", "## Assumed (not confirmed by you)", "## Constraints and exclusions",
+        "## Acceptance criteria", "## Open questions", "## Knowledge map", "## Evidence",
+    ),
+}
+
+
+def document_headings(body):
+    """Only literal template headings are content; comments and fenced examples are opaque."""
+    headings, fence, comment = [], None, False
+    for match in re.finditer(r"[^\n]*\n|[^\n]+", body):
+        raw = split_terminator(match.group())[0]
+        if fence:
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) + r"{%s,}[ \t]*" % len(fence), raw):
+                fence = None
+            continue
+        opening = re.match(r" {0,3}(`{3,}|~{3,})(.*)$", raw) if not comment else None
+        if opening and (opening[1][0] == "~" or "`" not in opening[2]):
+            fence = opening[1]
+            continue
+        line, comment = without_comments(raw, comment)
+        candidate = line.lstrip()
+        while True:
+            require(not re.fullmatch(r"(?:=+|-+)[ \t]*", candidate),
+                    "checks refuse injected Setext heading syntax; body prose cannot contain headings")
+            container = re.match(r"(?:>[ \t]*|(?:[-+*]|\d+[.)])[ \t]+)", candidate)
+            if not container:
+                break
+            candidate = candidate[container.end():].lstrip()
+        if re.match(r"#{1,6}(?:[ \t]+|$)", candidate):
+            require(raw == candidate and line == raw and match.group() == raw + "\n",
+                    "checks refuse injected, indented, commented or non-literal heading lines")
+            headings.append((match.start(), raw))
+    return headings
+
+
+def require_seed_checks(directory):
+    records = read_checks(directory)
+    body = "".join(seed_lines(directory))
+    require(not re.search(r"\r(?!\n)", body), "checks refuse lone CR: seed line endings must be LF or CRLF")
+    headings = document_headings(body)
+    require(headings and re.fullmatch(r"# [^\r\n]*\S", headings[0][1]),
+            "checks need one leading H1 title and canonical Full or Lean section headings")
+    section_titles = tuple(line for _, line in headings[1:])
+    require(section_titles in SEED_HEADINGS.values(),
+            "checks refuse injected, missing, reordered or non-canonical headings; use the Full or Lean template")
+    index = next(i for i, (_, line) in enumerate(headings) if line == "## Acceptance criteria")
+    start = headings[index][0]
+    end = headings[index + 1][0] if index + 1 < len(headings) else len(body)
+    require(body[start:end] == checks_block(records), "checks do not match the rendered Acceptance criteria section; use `seed checks render`")
+    return records
+
+
 def seed_summary(directory):
     """The saved seed's line 1, first revision label and sha256, or None when there is no seed. Read-only."""
     path = Path(directory) / SEED_FILE
@@ -714,7 +847,7 @@ def confirmation_record(directory):
         record = json.loads((Path(directory) / CONFIRMATION_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not (isinstance(record, dict) and set(record) == CONFIRMATION_FIELDS and record["schema_version"] == 1
+    if not (isinstance(record, dict) and set(record) == CONFIRMATION_FIELDS and record["schema_version"] == 2
             and all(text(record[k]) for k in CONFIRMATION_FIELDS - {"schema_version"})):
         return None
     return record
@@ -723,7 +856,7 @@ def confirmation_record(directory):
 def verify_handoff(directory, ledger=None):
     """Read-only: whether the saved seed and ledger are exactly what a human confirmed in this session.
 
-    Promises `verified` only when this session's confirmation record matches the seed's bytes and the ledger's decisions.
+    Promises `verified` only when this session's confirmation record matches seed bytes, decisions and check records.
     A seed confirmed before the record existed, or by an interrupted confirm, is unverified, never upgraded on read.
     Proves content, not who confirmed it or that its evidence is true.
     """
@@ -745,6 +878,12 @@ def verify_handoff(directory, ledger=None):
         return {"verified": False, "reason": "the seed changed after revision %s was confirmed" % record["revision"]}
     if record["decisions_sha256"] != decisions_digest(ledger):
         return {"verified": False, "reason": "the decisions changed after revision %s was confirmed" % record["revision"]}
+    try:
+        records = require_seed_checks(directory)
+    except (ValueError, OSError, TypeError):
+        return {"verified": False, "reason": "checks are missing, invalid or differ from the rendered seed"}
+    if record["checks_sha256"] != checks_digest(records):
+        return {"verified": False, "reason": "the checks changed after revision %s was confirmed" % record["revision"]}
     return {"verified": True, "reason": "revision %s as confirmed" % record["revision"]}
 
 
@@ -752,7 +891,7 @@ def confirm_seed(directory, revision, source):
     """Rewrite line 1 of a draft seed to the confirmed line and add `Confirmed by:`. Refuses before writing anything.
 
     The helper cannot know that a human affirmed; it makes the caller name the revision and quote the human's words. It
-    records them, with the confirmed seed's bytes and the decisions, in the confirmation record.
+    records them, with the confirmed seed's bytes, decisions and check records, in the confirmation record.
     """
     directory = Path(directory)
     require(text(revision), "--revision is required: the label shown to the human")
@@ -782,6 +921,7 @@ def confirm_seed(directory, revision, source):
         require(label == revision.strip(), "revision %r does not match the file's revision line (%r)" % (revision.strip(), label))
         require_seed_body(directory, "cannot confirm")
         require_seed_decisions(directory, ledger, "cannot confirm")
+        records = require_seed_checks(directory)
         first_end = split_terminator(lines[0])[1] or "\n"
         body, terminator = split_terminator(lines[index])
         note = 'Confirmed by: "%s" (revision %s, %s). Not approved for implementation.' % (
@@ -795,7 +935,7 @@ def confirm_seed(directory, revision, source):
             out.insert(index + 1, note)
         path = directory / SEED_FILE
         confirmed = "".join(out)
-        record = {"schema_version": 1, "session_id": ledger["session_id"], "operator": "human", "revision": label,
+        record = {"schema_version": 2, "checks_sha256": checks_digest(records), "session_id": ledger["session_id"], "operator": "human", "revision": label,
                   "source": source.strip(), "confirmed_at": now(), "seed_sha256": sha256(confirmed.encode("utf-8")), "decisions_sha256": decisions_digest(ledger)}
         # The record goes first: if the seed write then fails, the seed is still a draft and the record matches nothing.
         atomic_write_text(directory / CONFIRMATION_FILE, json.dumps(record, ensure_ascii=False, indent=2) + "\n")
@@ -829,6 +969,7 @@ def end(directory, status, reason, no_viewer=None):
                 require(handoff["verified"], "cannot complete: %s; save the current revision as a draft, show it, and "
                         "confirm it again with `seed confirm`" % handoff["reason"])
             require_seed_decisions(directory, ledger, "cannot complete")
+            require_seed_checks(directory)
         declined = None
         if needs_viewer and no_viewer is not None:
             def declined():
@@ -861,6 +1002,12 @@ def main():
     confirm.add_argument("--revision", required=True, help="the revision label the human confirmed, as in the seed's revision line")
     confirm.add_argument("--source", required=True, help="the human's words that confirmed it")
     seed.add_parser("decisions", help="print the seed's Decisions and Assumed sections from the ledger").add_argument("session", type=Path)
+    checks = seed.add_parser("checks", help="store, show or render strict acceptance records").add_subparsers(dest="checks_command", required=True)
+    for name in ("set", "show", "render"):
+        command = checks.add_parser(name)
+        command.add_argument("session", type=Path)
+        if name == "set":
+            command.add_argument("input", type=Path, help="non-empty JSON array of check records")
     args = parser.parse_args()
     try:
         if args.command == "init":
@@ -874,6 +1021,16 @@ def main():
         elif args.command == "seed" and args.seed_command == "decisions":
             sys.stdout.write(decisions_block(load(args.session)))
             return
+        elif args.command == "seed" and args.seed_command == "checks":
+            if args.checks_command == "set":
+                result = set_checks(args.session, json.loads(args.input.read_text(encoding="utf-8")))
+            else:
+                load(args.session)
+                records = read_checks(args.session)
+                if args.checks_command == "render":
+                    sys.stdout.write(checks_block(records))
+                    return
+                result = records
         elif args.command == "seed":
             result = confirm_seed(args.session, args.revision, args.source)
         else:

@@ -263,7 +263,7 @@ authorize product edits. The host runs the commands and owns the viewer process.
    `seed confirm` and saved as `<session>/seed-contract.md` in Step 5. `end --status completed`
    refuses unless line 1 of that file is `status: confirmed for intake` (`status: simulated` in a simulated session), the file has a `revision:` line and a non-empty `## You are confirming` section, and it carries the current `seed decisions` output, so a status line alone never completes a session.
    A human session also needs `seed confirm`'s record for this session to match the seed's bytes and the
-   current decisions; any later edit to either needs a new draft revision and a new confirmation:
+   current decisions and check records; any later content change needs a new draft revision and a new confirmation:
    ```sh
    python3 "<skill>/scripts/session.py" end "<session>" --status stopped --reason "User stopped the interview"
    python3 "<skill>/scripts/viewer.py" "<session>" --snapshot
@@ -360,24 +360,32 @@ Once the local review and close checklist are resolved:
    `python3 "<skill>/scripts/session.py" seed decisions "<session>"` into the seed unchanged, as
    its Decisions and Assumed sections, and print it again after any publish.
    Do not save a seed at the repository or workspace root. Overwrite only this session's own
-   file. When the user affirms the displayed revision label, run
+   file. Acceptance checks live only in `<session>/seed-checks.json`. Set them with
+   `python3 "<skill>/scripts/session.py" seed checks set "<session>" "<input.json>"` and inspect them with
+   `python3 "<skill>/scripts/session.py" seed checks show "<session>"`.
+   Follow the strict record schema and the exact Full or Lean heading sequence in
+   [seed-contract.md](references/seed-contract.md). Do not add headings in body prose or wrapper
+   headings around helper output; injected, nested and Setext headings are refused.
+   Paste `python3 "<skill>/scripts/session.py" seed checks render "<session>"` output unchanged
+   as the Acceptance criteria section before displaying the draft. Never hand-write criteria Markdown.
+   When the user affirms the displayed revision label, run
    ```sh
    python3 "<skill>/scripts/session.py" seed confirm "<session>" --revision "<the label>" --source "<the user's words>"
    ```
    The helper rewrites line 1 to `status: confirmed for intake`, adds a `Confirmed by:` line
    after the `revision:` line, and leaves every other line unchanged. It also writes
    `<session>/seed-confirmation.json`, which ties the confirmation to this session, the seed's bytes
-   and the decisions; never edit it. It refuses, and writes
+   and the decisions and check records; never edit it. It refuses, and writes
    nothing, when the seed is missing, line 1 is not `status: draft`, the label does not match the
-   file's `revision:` line, the seed has no `## You are confirming` section with content after its `revision:` line, the seed does not carry the current `seed decisions` output, the source is empty, any ledger node is unresolved or flagged for
+   file's `revision:` line, the seed has no `## You are confirming` section with content after its `revision:` line, the seed does not carry the current `seed decisions` output, the source is empty, check records are missing or invalid or their rendered section differs, any ledger node is unresolved or flagged for
    review, the session is simulated or not active, or the seed is already confirmed. Never type
    the confirmed line by hand, and never run the helper before the user has affirmed that revision.
-   If a decision or the seed changes after confirmation, save the new revision with line 1
+   If a decision, check record or the seed changes after confirmation, save the new revision with line 1
    `status: draft` and without the old `Confirmed by:` line, display it, and confirm it again;
    completion refuses the old confirmation.
 4. End the session as `completed`, save its final viewer snapshot, and stop the
    viewer process using **Session lifecycle**. Report the session folder, which holds
-   `seed-contract.md` and `ledger.json`, as discovery input for downstream planning or
+   `seed-contract.md`, `ledger.json`, `seed-checks.json` and `seed-confirmation.json`, as discovery input for downstream planning or
    implementation workflows, and stop. Leave commits to the user, and reserve
    downstream initialization, stage advancement, or implementation approval
    for subsequent workflows.
