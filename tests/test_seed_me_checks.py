@@ -4,6 +4,7 @@ Fixture copied unchanged from
 /tmp/tinkery-TEST-stacker-KZcCiq/sessions/37bc32a6-e13d-4558-ab44-6d00fabbd54a/seed-contract.md
 (real Stacker r1, 2026-10-18). Never edit that original.
 """
+import hashlib
 import json
 from pathlib import Path
 
@@ -145,6 +146,61 @@ class ChecksTests(SessionCase):
         self.assertEqual(self.confirm(directory).returncode, 0)
         self.assertFalse(marker.exists())
         self.assertEqual(json.loads(run("seed", "checks", "show", directory).stdout), [record])
+
+    def refuse_admission(self, transform):
+        directory = self.prepared()
+        path = directory / "seed-contract.md"
+        section = self.render(directory)
+        draft = path.read_text()
+        self.assertEqual(self.confirm(directory).returncode, 0)
+        confirmed = path.read_text()
+        receipt_path = directory / "seed-confirmation.json"
+        receipt = json.loads(receipt_path.read_text())
+        with self.subTest(route="confirm"):
+            path.write_text(transform(draft, section))
+            before = {p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}
+            result = self.confirm(directory)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertRegex(result.stderr, "checks|cannot confirm")
+            self.assertEqual({p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}, before)
+        # Keep all receipt hashes consistent: verification must check admission, not just byte drift.
+        path.write_text(transform(confirmed, section))
+        receipt["seed_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        receipt_path.write_text(json.dumps(receipt))
+        before = {p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}
+        with self.subTest(route="verify"):
+            result = run("status", directory)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(json.loads(result.stdout)["handoff"]["verified"])
+            self.assertEqual({p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}, before)
+            self.assertEqual(self.end(directory).returncode, 1)
+            self.assertEqual({p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}, before)
+
+    def test_extra_handwritten_acceptance_sections_are_refused(self):
+        for heading in ("## Acceptance checks", "### Acceptance criteria", "  ## Acceptance checks ###",
+                        "## ACCEPTANCE CRITERIA", "## Acceptance criteria ##", "# Acceptance criteria",
+                        "Acceptance checks\n-----------------"):
+            with self.subTest(heading=heading):
+                extra = heading + "\nTEST additional requirement\ncmd: false\nexpect: exit zero\ncwd: .\n\n"
+                self.refuse_admission(lambda body, section: body.replace(section, section + extra, 1))
+
+    def test_a_canonical_section_only_inside_a_fence_is_refused(self):
+        for fence, interior in (("````markdown", ""), ("~~~~markdown", "```\n")):
+            with self.subTest(fence=fence):
+                closing = fence[:4]
+                def transform(body, section):
+                    return body.replace(section, fence + "\n" + interior + section + "## End example\n" + closing + "\n\n", 1)
+                self.refuse_admission(transform)
+                self.refuse_admission(lambda body, section: transform(body, section) + "\n## Acceptance checks\ncmd: false\n")
+
+    def test_fenced_examples_do_not_hide_the_real_canonical_section(self):
+        directory = self.prepared()
+        path = directory / "seed-contract.md"
+        section = self.render(directory)
+        example = "````markdown\n" + section + "## Acceptance checks\nexample only\n````\n\n"
+        path.write_text(path.read_text().replace(section, example + section, 1))
+        self.assertEqual(self.confirm(directory).returncode, 0)
+        self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
 
     def test_confirm_refuses_missing_duplicate_or_handwritten_section(self):
         directory = self.prepared()

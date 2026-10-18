@@ -16,8 +16,10 @@ Read this before drafting the seed (SKILL.md Step 5.1). The displayed and saved 
 - Proposed outcome: desired user-visible results and success criteria.
 - Acceptance criteria: generated only from the session's `seed-checks.json` records using
   `session.py seed checks render <session>`. Paste the entire output unchanged, including its
-  `## Acceptance criteria` heading and final blank line. Never hand-write or parse criteria Markdown.
-  Downstream consumers read the records, not the rendered section. See **Check records** below.
+  `## Acceptance criteria` heading and final blank line. It must be the only acceptance section,
+  outside fenced examples; additional `Acceptance checks` or duplicate acceptance headings are refused.
+  Never hand-write or parse criteria Markdown. Downstream consumers read the records, not the rendered
+  section. See **Check records** below.
 - Affected users and systems: relevant repositories, modules, and execution paths.
 - Constraints and boundaries: non-negotiables, exclusions, and rejected alternatives.
 - Accepted decisions and assumed defaults: the output of `session.py seed decisions "<session>"`,
@@ -88,7 +90,10 @@ Unknown kinds and fields are refused. Exact schema (required fields unless marke
 component, backslashes and drive-letter paths are refused. The helper never executes checks.
 The source names the actual decision or evidence, not invented command provenance.
 
-`seed confirm` requires the exact rendered section and stores canonical records' SHA-256 alongside
+Both confirmation and handoff verification require exactly one real Acceptance criteria section,
+byte-identical to the render. A matching occurrence only inside a fence does not count, and extra
+acceptance sections are refused even when all stored hashes match.
+`seed confirm` stores canonical records' SHA-256 alongside
 seed-byte and decision hashes in `seed-confirmation.json` (schema version 2). Record changes,
 missing or invalid records, or any seed-byte change invalidate `handoff.verified`; a new displayed
 draft and confirmation are required. There is no compatibility path for old Markdown-only seeds
