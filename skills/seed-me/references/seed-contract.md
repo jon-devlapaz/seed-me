@@ -18,7 +18,7 @@ Read this before drafting the seed (SKILL.md Step 5.1). The displayed and saved 
   `session.py seed checks render <session>`. Paste the entire output unchanged, including its
   `## Acceptance criteria` heading and final blank line. It must be the only acceptance section,
   outside fenced examples and HTML comments; additional `Acceptance checks` or duplicate acceptance
-  headings are refused even when their titles use inline formatting.
+  headings are refused. The entire document must use one exact canonical heading sequence below.
   Never hand-write or parse criteria Markdown. Downstream consumers read the records, not the rendered
   section. See **Check records** below.
 - Affected users and systems: relevant repositories, modules, and execution paths.
@@ -63,6 +63,58 @@ Read this before drafting the seed (SKILL.md Step 5.1). The displayed and saved 
   active contract and surface conflicts rather than silently replacing decisions.
   Do not preselect a downstream profile or fabricate stage approval.
 
+## Canonical document headings
+
+Choose Full or Lean. Outside fenced code and HTML comments, the document must have one leading
+variable `# <title>` line followed by exactly the chosen sequence below. Every heading line is
+literal, unindented and LF-terminated: no renaming, inline formatting, closing hashes, omissions,
+duplicates, extra headings or reordering. Metadata and prose retain their existing line endings.
+The host writes these headings; there is no new CLI or record field for the template choice.
+
+Body prose must not contain ATX or Setext heading syntax, at any nesting or indentation. Setext
+underline markers (`---` or `===`, of any length) are refused rather than interpreted, including
+horizontal-rule-looking separators. Put literal heading examples in fences or HTML comments.
+This is a structural allowlist, not title normalization or a per-criterion Markdown grammar.
+
+Full, after the variable title:
+
+```text
+## You are confirming
+## Problem statement
+## Proposed outcome
+## Acceptance criteria
+## Affected users and systems
+## Constraints and boundaries
+## Decisions (from the ledger)
+## Assumed (not confirmed by you)
+## Knowledge map
+## Evidence and uncertainty
+## Suggested first slice
+## Risks and verification
+## Open questions and deferrals
+## Owners and next steps
+## Downstream handoff
+```
+
+Lean, after the variable title:
+
+```text
+## You are confirming
+## Now  (the agent keeps these current)
+## Goal
+## Decisions (from the ledger)
+## Assumed (not confirmed by you)
+## Constraints and exclusions
+## Acceptance criteria
+## Open questions
+## Knowledge map
+## Evidence
+```
+
+Paste the unchanged `seed decisions` and `seed checks render` blocks at their positions in the
+chosen sequence, without adding wrapper headings. Only the heading sequence and section admission
+have changed; the record schema, CLI, rendered blocks and confirmation v2 format are unchanged.
+
 ## Check records
 
 The helper CLI is:
@@ -92,12 +144,11 @@ component, backslashes and drive-letter paths are refused. The helper never exec
 The source names the actual decision or evidence, not invented command provenance.
 
 Both confirmation and handoff verification require exactly one real Acceptance criteria section,
-byte-identical to the render. Fenced code and HTML comments are non-content when locating sections;
-comment delimiters inside code fences or record strings are literal data. Every ATX or Setext heading
-is compared by its plain text: inline emphasis, code spans, link labels/references and HTML tags/entities
-are flattened, then case and whitespace are normalized. An extra heading whose text is `Acceptance
-criteria` or `Acceptance checks` is refused even when all stored hashes match. A canonical occurrence
-only inside a comment or fence never counts. These admission checks do not change the rendered bytes.
+byte-identical to the render, within the complete canonical Full or Lean heading sequence.
+Fenced code and HTML comments are non-content when locating sections; comment delimiters inside
+code fences or record strings are literal data. Any injected heading is refused regardless of its
+title, including emphasized, multiline Setext and nested headings, even when all stored hashes match.
+A canonical occurrence only inside a comment or fence never counts. No heading normalization remains.
 `seed confirm` stores canonical records' SHA-256 alongside
 seed-byte and decision hashes in `seed-confirmation.json` (schema version 2). Record changes,
 missing or invalid records, or any seed-byte change invalidate `handoff.verified`; a new displayed

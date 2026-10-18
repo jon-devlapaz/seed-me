@@ -193,6 +193,38 @@ class ChecksTests(SessionCase):
                 self.refuse_admission(transform)
                 self.refuse_admission(lambda body, section: transform(body, section) + "\n## Acceptance checks\ncmd: false\n")
 
+    def test_full_and_lean_templates_keep_the_same_rendered_checks(self):
+        for profile in ("full", "lean"):
+            with self.subTest(profile=profile):
+                directory = self.prepared()
+                path = self.write_seed(directory, profile=profile)
+                self.assertIn(self.render(directory).encode(), path.read_bytes())
+                result = self.confirm(directory)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(json.loads(run("status", directory).stdout)["handoff"]["verified"])
+
+    def test_template_headings_must_be_literal_complete_and_ordered(self):
+        for changed in ("## **Goal**", "## goal", "Goal", "## Evidence", "  ## Goal", "Goal\n----"):
+            with self.subTest(changed=changed):
+                self.refuse_admission(lambda body, section: body.replace("## Goal\n", changed + "\n", 1))
+        self.refuse_admission(lambda body, section: body.replace("## Goal\n", "## TEMP\n", 1)
+                              .replace("## Now  (the agent keeps these current)\n", "## Goal\n", 1)
+                              .replace("## TEMP\n", "## Now  (the agent keeps these current)\n", 1))
+
+    def test_multiline_setext_headings_after_other_sections_are_refused(self):
+        for title in ("**Acceptance**\n_checks_\n-----------------",
+                      "[**Acceptance**](https://example.test)\n_criteria_\n================="):
+            with self.subTest(title=title):
+                self.refuse_admission(lambda body, section: body + "\n" + title + "\nTEST unrecorded requirement\ncmd: false\n")
+
+    def test_body_prose_refuses_headings_of_any_title_or_nesting(self):
+        for heading in ("## Security override", "### Nested note", "> ## Quoted override",
+                        "- ## List override", "    ## Indented override", "Other\nstray title\n----",
+                        "Other\nstray title\n- ", "> Other\n> stray title\n> -\t",
+                        "- Other\n  stray title\n  - "):
+            with self.subTest(heading=heading):
+                self.refuse_admission(lambda body, section: body + "\n" + heading + "\nTEST extra body\n")
+
     def test_inline_markup_cannot_hide_extra_acceptance_headings(self):
         for title in ("**Acceptance checks**", "_Acceptance criteria_", "`Acceptance checks`",
                       "Accept**ance**  CHECKS", "<em>Acceptance</em>&nbsp;<code>checks</code>",

@@ -363,7 +363,9 @@ Once the local review and close checklist are resolved:
    file. Acceptance checks live only in `<session>/seed-checks.json`. Set them with
    `python3 "<skill>/scripts/session.py" seed checks set "<session>" "<input.json>"` and inspect them with
    `python3 "<skill>/scripts/session.py" seed checks show "<session>"`.
-   Follow the strict record schema in [seed-contract.md](references/seed-contract.md).
+   Follow the strict record schema and the exact Full or Lean heading sequence in
+   [seed-contract.md](references/seed-contract.md). Do not add headings in body prose or wrapper
+   headings around helper output; injected, nested and Setext headings are refused.
    Paste `python3 "<skill>/scripts/session.py" seed checks render "<session>"` output unchanged
    as the Acceptance criteria section before displaying the draft. Never hand-write criteria Markdown.
    When the user affirms the displayed revision label, run
